@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/postgres:15
+    container_name: postgres_sql
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: coedit               # 初始化数据库名
+      POSTGRES_USER: coedit           # 超级用户名
+      POSTGRES_PASSWORD: coedit123     # 密码
+      TZ: Asia/Shanghai                # 容器时区
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./pg_data:/var/lib/postgresql/data   # 数据持久化
+      # - ./init:/docker-entrypoint-initdb.d  # 如需自动执行初始化脚本，可放开
+

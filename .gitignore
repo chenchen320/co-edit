@@ -1,0 +1,7 @@
+pg_data/
+
+.env
+
+node_modules
+
+Thumbs.db
