@@ -4,16 +4,44 @@ import { UpdateDocumentDto } from './dto/update-document.dto';
 export declare class DocumentController {
     private readonly documentService;
     constructor(documentService: DocumentService);
-    create(createDocumentDto: CreateDocumentDto): string;
-    findAll(): Promise<{
+    create(createDocumentDto: CreateDocumentDto): import("@prisma/client").Prisma.Prisma__DocumentClient<{
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
         title: string;
         content: string | null;
-        authorId: string;
+        createdAt: Date;
+        updatedAt: Date;
+        authorId: string | null;
+    }, never, import("@prisma/client/runtime/library").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
+    findAll(): Promise<{
+        id: string;
+        title: string;
+        content: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        authorId: string | null;
     }[]>;
-    findOne(id: string): string;
-    update(id: string, updateDocumentDto: UpdateDocumentDto): string;
-    remove(id: string): string;
+    findOne(id: string): Promise<{
+        id: string;
+        title: string;
+        content: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        authorId: string | null;
+    } | null>;
+    update(id: string, updateDocumentDto: UpdateDocumentDto): Promise<{
+        id: string;
+        title: string;
+        content: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        authorId: string | null;
+    }>;
+    remove(id: string): Promise<{
+        id: string;
+        title: string;
+        content: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        authorId: string | null;
+    }>;
 }

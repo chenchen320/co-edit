@@ -18,19 +18,32 @@ let DocumentService = class DocumentService {
         this.prisma = prisma;
     }
     create(createDocumentDto) {
-        return 'This action adds a new document';
+        return this.prisma.document.create({
+            data: {
+                title: createDocumentDto.title,
+                content: createDocumentDto.content,
+                authorId: '12443',
+            },
+        });
     }
     async findAll() {
         return await this.prisma.document.findMany();
     }
-    findOne(id) {
-        return `This action returns a #${id} document`;
+    async findOne(id) {
+        return await this.prisma.document.findUnique({
+            where: { id },
+        });
     }
-    update(id, updateDocumentDto) {
-        return `This action updates a #${id} document`;
+    async update(id, updateDocumentDto) {
+        return await this.prisma.document.update({
+            where: { id },
+            data: updateDocumentDto,
+        });
     }
-    remove(id) {
-        return `This action removes a #${id} document`;
+    async remove(id) {
+        return await this.prisma.document.delete({
+            where: { id },
+        });
     }
 };
 exports.DocumentService = DocumentService;

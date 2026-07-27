@@ -4,16 +4,44 @@ import { PrismaService } from "../prisma/prisma.service";
 export declare class DocumentService {
     private prisma;
     constructor(prisma: PrismaService);
-    create(createDocumentDto: CreateDocumentDto): string;
-    findAll(): Promise<{
+    create(createDocumentDto: CreateDocumentDto): import("@prisma/client").Prisma.Prisma__DocumentClient<{
         id: string;
-        createdAt: Date;
-        updatedAt: Date;
         title: string;
         content: string | null;
-        authorId: string;
+        createdAt: Date;
+        updatedAt: Date;
+        authorId: string | null;
+    }, never, import("@prisma/client/runtime/library").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
+    findAll(): Promise<{
+        id: string;
+        title: string;
+        content: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        authorId: string | null;
     }[]>;
-    findOne(id: number): string;
-    update(id: number, updateDocumentDto: UpdateDocumentDto): string;
-    remove(id: number): string;
+    findOne(id: string): Promise<{
+        id: string;
+        title: string;
+        content: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        authorId: string | null;
+    } | null>;
+    update(id: string, updateDocumentDto: UpdateDocumentDto): Promise<{
+        id: string;
+        title: string;
+        content: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        authorId: string | null;
+    }>;
+    remove(id: string): Promise<{
+        id: string;
+        title: string;
+        content: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        authorId: string | null;
+    }>;
 }
