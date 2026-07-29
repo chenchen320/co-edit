@@ -1,20 +1,32 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  UseGuards,
+} from '@nestjs/common';
 import { DocumentService } from './document.service';
 import { CreateDocumentDto } from './dto/create-document.dto';
 import { UpdateDocumentDto } from './dto/update-document.dto';
+import { AuthGuard } from 'src/auth/auth.guard';
+import { User } from 'src/auth/user.dectorator';
 
 @Controller('document')
+@UseGuards(AuthGuard)
 export class DocumentController {
   constructor(private readonly documentService: DocumentService) {}
 
   @Post()
-  create(@Body() createDocumentDto: CreateDocumentDto) {
-    return this.documentService.create(createDocumentDto);
+  create(@Body() createDocumentDto: CreateDocumentDto, @User() user: any) {
+    return this.documentService.create(createDocumentDto, user.id);
   }
 
   @Get()
-  async findAll() {
-    return await this.documentService.findAll();
+  async findAll(@User() user:any) {
+    return await this.documentService.findAll(user.id);
   }
 
   @Get(':id')
@@ -23,7 +35,10 @@ export class DocumentController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateDocumentDto: UpdateDocumentDto) {
+  update(
+    @Param('id') id: string,
+    @Body() updateDocumentDto: UpdateDocumentDto,
+  ) {
     return this.documentService.update(id, updateDocumentDto);
   }
 

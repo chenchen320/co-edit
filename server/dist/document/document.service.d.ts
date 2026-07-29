@@ -4,7 +4,7 @@ import { PrismaService } from "../prisma/prisma.service";
 export declare class DocumentService {
     private prisma;
     constructor(prisma: PrismaService);
-    create(createDocumentDto: CreateDocumentDto): import("@prisma/client").Prisma.Prisma__DocumentClient<{
+    create(createDocumentDto: CreateDocumentDto, authorId: string): import("@prisma/client").Prisma.Prisma__DocumentClient<{
         id: string;
         title: string;
         content: string | null;
@@ -12,7 +12,7 @@ export declare class DocumentService {
         updatedAt: Date;
         authorId: string | null;
     }, never, import("@prisma/client/runtime/library").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
-    findAll(): Promise<{
+    findAll(authorId: string): Promise<{
         id: string;
         title: string;
         content: string | null;

@@ -17,17 +17,19 @@ let DocumentService = class DocumentService {
     constructor(prisma) {
         this.prisma = prisma;
     }
-    create(createDocumentDto) {
+    create(createDocumentDto, authorId) {
         return this.prisma.document.create({
             data: {
                 title: createDocumentDto.title,
                 content: createDocumentDto.content,
-                authorId: '12443',
+                authorId,
             },
         });
     }
-    async findAll() {
-        return await this.prisma.document.findMany();
+    async findAll(authorId) {
+        return await this.prisma.document.findMany({
+            where: { authorId },
+        });
     }
     async findOne(id) {
         return await this.prisma.document.findUnique({

@@ -4,7 +4,7 @@ import { UpdateDocumentDto } from './dto/update-document.dto';
 export declare class DocumentController {
     private readonly documentService;
     constructor(documentService: DocumentService);
-    create(createDocumentDto: CreateDocumentDto): import("@prisma/client").Prisma.Prisma__DocumentClient<{
+    create(createDocumentDto: CreateDocumentDto, user: any): import("@prisma/client").Prisma.Prisma__DocumentClient<{
         id: string;
         title: string;
         content: string | null;
@@ -12,7 +12,7 @@ export declare class DocumentController {
         updatedAt: Date;
         authorId: string | null;
     }, never, import("@prisma/client/runtime/library").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
-    findAll(): Promise<{
+    findAll(user: any): Promise<{
         id: string;
         title: string;
         content: string | null;

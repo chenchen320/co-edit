@@ -12,75 +12,70 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.DocumentController = void 0;
+exports.UserController = void 0;
 const common_1 = require("@nestjs/common");
-const document_service_1 = require("./document.service");
-const create_document_dto_1 = require("./dto/create-document.dto");
-const update_document_dto_1 = require("./dto/update-document.dto");
-const auth_guard_1 = require("../auth/auth.guard");
-const user_dectorator_1 = require("../auth/user.dectorator");
-let DocumentController = class DocumentController {
-    documentService;
-    constructor(documentService) {
-        this.documentService = documentService;
+const user_service_1 = require("./user.service");
+const create_user_dto_1 = require("./dto/create-user.dto");
+const update_user_dto_1 = require("./dto/update-user.dto");
+let UserController = class UserController {
+    userService;
+    constructor(userService) {
+        this.userService = userService;
     }
-    create(createDocumentDto, user) {
-        return this.documentService.create(createDocumentDto, user.id);
+    create(createUserDto) {
+        return this.userService.create(createUserDto);
     }
-    async findAll(user) {
-        return await this.documentService.findAll(user.id);
+    findAll() {
+        return this.userService.findAll();
     }
     findOne(id) {
-        return this.documentService.findOne(id);
+        return this.userService.findOne(+id);
     }
-    update(id, updateDocumentDto) {
-        return this.documentService.update(id, updateDocumentDto);
+    update(id, updateUserDto) {
+        return this.userService.update(+id, updateUserDto);
     }
     remove(id) {
-        return this.documentService.remove(id);
+        return this.userService.remove(+id);
     }
 };
-exports.DocumentController = DocumentController;
+exports.UserController = UserController;
 __decorate([
     (0, common_1.Post)(),
     __param(0, (0, common_1.Body)()),
-    __param(1, (0, user_dectorator_1.User)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [create_document_dto_1.CreateDocumentDto, Object]),
+    __metadata("design:paramtypes", [create_user_dto_1.CreateUserDto]),
     __metadata("design:returntype", void 0)
-], DocumentController.prototype, "create", null);
+], UserController.prototype, "create", null);
 __decorate([
     (0, common_1.Get)(),
-    __param(0, (0, user_dectorator_1.User)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
-    __metadata("design:returntype", Promise)
-], DocumentController.prototype, "findAll", null);
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], UserController.prototype, "findAll", null);
 __decorate([
     (0, common_1.Get)(':id'),
     __param(0, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
-], DocumentController.prototype, "findOne", null);
+], UserController.prototype, "findOne", null);
 __decorate([
     (0, common_1.Patch)(':id'),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, update_document_dto_1.UpdateDocumentDto]),
+    __metadata("design:paramtypes", [String, update_user_dto_1.UpdateUserDto]),
     __metadata("design:returntype", void 0)
-], DocumentController.prototype, "update", null);
+], UserController.prototype, "update", null);
 __decorate([
     (0, common_1.Delete)(':id'),
     __param(0, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
-], DocumentController.prototype, "remove", null);
-exports.DocumentController = DocumentController = __decorate([
-    (0, common_1.Controller)('document'),
-    (0, common_1.UseGuards)(auth_guard_1.AuthGuard),
-    __metadata("design:paramtypes", [document_service_1.DocumentService])
-], DocumentController);
-//# sourceMappingURL=document.controller.js.map
+], UserController.prototype, "remove", null);
+exports.UserController = UserController = __decorate([
+    (0, common_1.Controller)('user'),
+    __metadata("design:paramtypes", [user_service_1.UserService])
+], UserController);
+//# sourceMappingURL=user.controller.js.map
