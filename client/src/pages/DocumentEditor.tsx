@@ -1,8 +1,13 @@
-import React from "react";
-import { Button, Layout, Space, Badge } from "antd";
+import React, { useState ,useEffect } from "react";
+import { Button, Layout, Space } from "antd";
 import { ChevronLeft, CloudLightning, CloudCheck } from "lucide-react"; // 使用替代云同步图标
-
+import { useEditor,EditorContent } from '@tiptap/react'
+import StarterKit from '@tiptap/starter-kit'
+import { useParams } from "react-router-dom";
+import apiClient from "../utils/apiClient";
+import useDebounce from "../utils/useDebounce";
 const { Header, Content } = Layout;
+
 
 export interface DocumentEditorProps {
   /**
@@ -32,12 +37,16 @@ export interface DocumentEditorProps {
  * CoEdit 文档编辑页静态页面组件 (飞书云文档纯享风格)
  */
 export const DocumentEditor: React.FC<DocumentEditorProps> = ({
-  id,
-  title = "未命名文档",
-  saveStatus = "saved",
+  id: _id,
+  title :initialTitle = "未命名文档",
+  saveStatus:_saveStatus = "saved",
   onBack,
   editorContainer,
 }) => {
+  const {id} = useParams();
+  const [title,setTitle] = useState(initialTitle);
+  const [saveStatus,setSaveStatus] = useState<'saved' |'saving' |'error'>("saved")
+
   // 状态点样式与描述
   const getStatusConfig = () => {
     switch (saveStatus) {
@@ -66,6 +75,36 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
     }
   };
 
+  const saveContent = async (htmlContent:string) => {
+    setSaveStatus('saving');
+    try{
+      await apiClient.patch(`document/${id}`,{content:htmlContent});
+      setSaveStatus('saved')
+    }catch{
+      setSaveStatus('error')
+    }
+  }
+
+  const debounceSave = useDebounce(saveContent,1500);
+
+  const editor = useEditor({
+    extensions:[StarterKit],
+    content:'',
+    onUpdate:({editor}) => {
+      debounceSave(editor.getHTML())
+    }
+  })
+
+    useEffect(() => {
+    const loadDoc = async () => {
+      const res = await apiClient.get(`/document/${id}`);
+      setTitle(res.data.title);
+      if (editor && res.data.content) {
+        editor.commands.setContent(res.data.content);
+      }
+    };
+    if (editor) loadDoc();
+  }, [id, editor]);
   const statusConfig = getStatusConfig();
 
   return (
@@ -142,7 +181,6 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
               marginBottom: "24px",
               outline: "none",
             }}
-            placeholder="请输入文档标题"
           >
             {title}
           </div>
@@ -163,8 +201,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                   backgroundColor: "#FAFAFA",
                 }}
               >
-                {/* TODO: 业务逻辑由用户实现：在此处挂载您的 Tiptap 渲染引擎 */}
-                [ Tiptap 编辑器内核载入占位区 - 静态视图 ]
+               <EditorContent editor={editor} />
               </div>
             )}
           </div>
