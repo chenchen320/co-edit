@@ -6,42 +6,42 @@ export declare class DocumentService {
     constructor(prisma: PrismaService);
     create(createDocumentDto: CreateDocumentDto, authorId: string): import("@prisma/client").Prisma.Prisma__DocumentClient<{
         id: string;
-        title: string;
-        content: string | null;
         createdAt: Date;
         updatedAt: Date;
+        title: string;
+        content: string | null;
         authorId: string | null;
     }, never, import("@prisma/client/runtime/library").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
     findAll(authorId: string): Promise<{
         id: string;
-        title: string;
-        content: string | null;
         createdAt: Date;
         updatedAt: Date;
+        title: string;
+        content: string | null;
         authorId: string | null;
     }[]>;
     findOne(id: string): Promise<{
         id: string;
-        title: string;
-        content: string | null;
         createdAt: Date;
         updatedAt: Date;
+        title: string;
+        content: string | null;
         authorId: string | null;
     } | null>;
     update(id: string, updateDocumentDto: UpdateDocumentDto): Promise<{
         id: string;
-        title: string;
-        content: string | null;
         createdAt: Date;
         updatedAt: Date;
+        title: string;
+        content: string | null;
         authorId: string | null;
     }>;
     remove(id: string): Promise<{
         id: string;
-        title: string;
-        content: string | null;
         createdAt: Date;
         updatedAt: Date;
+        title: string;
+        content: string | null;
         authorId: string | null;
     }>;
 }
