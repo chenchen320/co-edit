@@ -36,16 +36,23 @@ export interface DocumentEditorProps {
 /**
  * CoEdit 文档编辑页静态页面组件 (飞书云文档纯享风格)
  */
+import { io } from "socket.io-client";
+import * as Y from "yjs";
+import Collaboration from "@tiptap/extension-collaboration";
+
 export const DocumentEditor: React.FC<DocumentEditorProps> = ({
   id: _id,
-  title :initialTitle = "未命名文档",
-  saveStatus:_saveStatus = "saved",
+  title: initialTitle = "未命名文档",
+  saveStatus: _saveStatus = "saved",
   onBack,
   editorContainer,
 }) => {
-  const {id} = useParams();
-  const [title,setTitle] = useState(initialTitle);
-  const [saveStatus,setSaveStatus] = useState<'saved' |'saving' |'error'>("saved")
+  const { id } = useParams<{ id: string }>();
+  const [title, setTitle] = useState(initialTitle);
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error'>("saved");
+
+  // 1. 初始化 Yjs 文档和共享字段
+  const [ydoc] = useState(() => new Y.Doc());
 
   // 状态点样式与描述
   const getStatusConfig = () => {
@@ -75,37 +82,97 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
     }
   };
 
-  const saveContent = async (htmlContent:string) => {
+  // 2. 数据库落库自动保存（作为离线和最终数据库持久化的兜底）
+  const saveContentToDatabase = async (htmlContent: string) => {
     setSaveStatus('saving');
-    try{
-      await apiClient.patch(`document/${id}`,{content:htmlContent});
-      setSaveStatus('saved')
-    }catch{
-      setSaveStatus('error')
+    try {
+      await apiClient.patch(`document/${id}`, { content: htmlContent });
+      setSaveStatus('saved');
+    } catch {
+      setSaveStatus('error');
     }
-  }
+  };
 
-  const debounceSave = useDebounce(saveContent,1500);
+  const debounceSave = useDebounce(saveContentToDatabase, 1500);
 
+  // 3. 配置 Tiptap 编辑器内核（绑定 Yjs 的 ydoc）
   const editor = useEditor({
-    extensions:[StarterKit],
-    content:'',
-    onUpdate:({editor}) => {
-      debounceSave(editor.getHTML())
-    }
-  })
+    extensions: [
+      StarterKit.configure({
+        history: false, // 💡 必须关闭自带历史，改用 Yjs 的历史记录管理
+      }),
+      Collaboration.configure({
+        document: ydoc,
+        field: "codewrite",
+      }),
+    ],
+    content: "",
+    onUpdate: ({ editor }) => {
+      // 触发数据库自动保存防抖
+      debounceSave(editor.getHTML());
+    },
+  });
 
-    useEffect(() => {
-    const loadDoc = async () => {
-      const res = await apiClient.get(`/document/${id}`);
-      setTitle(res.data.title);
-      if (editor && res.data.content) {
-        editor.commands.setContent(res.data.content);
+  // 4. 处理 WebSocket 二进制协同同步
+  useEffect(() => {
+    if (!id || !editor) return;
+
+    // 连接 Socket 服务器
+    const socket = io("http://localhost:3000");
+
+    // 监听连接事件并加入房间
+    socket.on("connect", () => {
+      socket.emit("join-document", { documentId: id });
+    });
+
+    // 接收后端的第一次同步消息（Sync Step 1 / 2）
+    socket.on("sync", (buffer: ArrayBuffer) => {
+      Y.applyUpdate(ydoc, new Uint8Array(buffer));
+    });
+
+    // 接收其他人的编辑数据
+    socket.on("document-updated", (data: { content: ArrayBuffer }) => {
+      Y.applyUpdate(ydoc, new Uint8Array(data.content));
+    });
+
+    // 当本地 Ydoc 被用户修改时，向外推送二进制增量数据
+    const handleYDocUpdate = (update: Uint8Array) => {
+      socket.emit("document-update", {
+        documentId: id,
+        content: update,
+      });
+    };
+
+    ydoc.on("update", handleYDocUpdate);
+
+    // 从数据库获取文档的初始标题并渲染
+    const loadInitialDoc = async () => {
+      try {
+        const res = await apiClient.get(`/document/${id}`);
+        setTitle(res.data.title);
+        // 如果数据库有旧数据，且本地 Ydoc 为空，则初始化 Ydoc
+        if (res.data.content && ydoc.getText("codewrite").length === 0) {
+          // 初始化同步
+          ydoc.transact(() => {
+            const ytext = ydoc.getText("codewrite");
+            ytext.insert(0, res.data.content);
+          });
+        }
+      } catch (err) {
+        console.error("加载文档数据失败", err);
       }
     };
-    if (editor) loadDoc();
-  }, [id, editor]);
+    loadInitialDoc();
+
+    // 销毁生命周期，断开连接
+    return () => {
+      ydoc.off("update", handleYDocUpdate);
+      socket.disconnect();
+    };
+  }, [id, editor, ydoc]);
+
   const statusConfig = getStatusConfig();
+
 
   return (
     <Layout style={{ minHeight: "100vh", backgroundColor: "#F5F6F7" }}>
