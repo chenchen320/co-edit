@@ -6,9 +6,9 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
-import { syncProtocol } from 'y-protocols/dist/sync';
+import { readSyncMessage } from 'y-protocols/sync';
 import { decoding, encoding } from 'lib0';
-import { Server, Socket } from 'socket.io';
+import { Socket } from 'socket.io';
 import * as Y from 'yjs';
 @WebSocketGateway({
   cors: {
@@ -17,7 +17,7 @@ import * as Y from 'yjs';
 })
 export class CollaborationGateway implements OnGatewayDisconnect {
   private documents: Map<string, Y.Doc> = new Map();
-  @WebSocketServer() server: Server;
+  @WebSocketServer() server: Socket;
 
   handleDisconnect(client: Socket) {
     console.log(client.id);
@@ -28,14 +28,15 @@ export class CollaborationGateway implements OnGatewayDisconnect {
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: { documentId: string },
   ) {
-    if (payload.documentId) {
-      let doc = this.documents.get(payload.documentId);
-      if (!doc) {
-        doc = new Y.Doc();
-        this.documents.set(payload.documentId, doc);
+    const { documentId } = payload;
+    const docs = this.documents.get(documentId);
+    if (documentId) {
+      if (!docs) {
+        const doc = new Y.Doc();
+        this.documents.set(documentId, doc);
       }
-      client.join(payload.documentId);
-      client.data.documentId = payload.documentId;
+      client.join(documentId);
+      client.data.documentId = documentId;
       return { status: 'ok' };
     } else {
       client.emit('error', { message: '...' });
@@ -76,7 +77,7 @@ export class CollaborationGateway implements OnGatewayDisconnect {
     const replyEncoder = encoding.createEncoder();
     const origin = client;
 
-    syncProtocol.readSyncMessage(decoder, replyEncoder, doc, origin);
+    readSyncMessage(decoder, replyEncoder, doc, origin);
 
     if (encoding.length(replyEncoder) > 0) {
       const replyMessage = encoding.toUint8Array(replyEncoder);

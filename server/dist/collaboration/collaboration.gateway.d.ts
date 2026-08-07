@@ -1,8 +1,8 @@
 import { OnGatewayDisconnect } from '@nestjs/websockets';
 import { Socket } from 'socket.io';
-import { Server } from 'socket.io';
 export declare class CollaborationGateway implements OnGatewayDisconnect {
-    server: Server;
+    private documents;
+    server: Socket;
     handleDisconnect(client: Socket): void;
     handleJoin(client: Socket, payload: {
         documentId: string;
@@ -13,4 +13,5 @@ export declare class CollaborationGateway implements OnGatewayDisconnect {
         documentId: string;
         content: any;
     }): void;
+    handleSync(client: Socket, data: Buffer): void;
 }

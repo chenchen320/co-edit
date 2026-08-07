@@ -8,21 +8,21 @@ datasource db {
 }
 
 model Document {
-  id        String   @id
+  id        String   @id @default(uuid())
   title     String   @default("无标题文档")
   content   String?
   createdAt DateTime @default(now())
   authorId  String?
-  updatedAt DateTime
+  updatedAt DateTime @updatedAt()
   User      User?    @relation(fields: [authorId], references: [id])
 }
 
 model User {
-  id        String     @id
+  id        String     @id @default(uuid())
   email     String     @unique
   password  String
   username  String
   createdAt DateTime   @default(now())
-  updatedAt DateTime
+  updatedAt DateTime   @updatedAt()
   Document  Document[]
 }
