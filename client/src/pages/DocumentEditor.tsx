@@ -1,48 +1,42 @@
 import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
-import { Button, Layout, Space } from 'antd'
+import { Button, Layout, Space, message, Avatar, Tooltip } from 'antd'
 import { encoding } from 'lib0'
-import { ChevronLeft, CloudCheck, CloudLightning } from 'lucide-react' // 使用替代云同步图标
+import { 
+  ChevronLeft, CloudCheck, CloudLightning, Share2, User,
+  Bold, Italic, Strikethrough, Heading1, Heading2, List, ListOrdered, Code
+} from 'lucide-react'
 import React, { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { writeSyncStep1 } from 'y-protocols/sync.js'
 import apiClient from '../utils/apiClient'
 import useDebounce from '../utils/useDebounce'
-const { Header, Content } = Layout
-
-export interface DocumentEditorProps {
-  /**
-   * 文档 ID
-   */
-  id?: string | number
-  /**
-   * 文档标题，默认 "未命名文档"
-   */
-  title?: string
-  /**
-   * 文档同步/保存状态：'saved'（已保存），'saving'（保存中...），'error'（保存失败）
-   */
-  saveStatus?: 'saved' | 'saving' | 'error'
-  /**
-   * 点击返回列表按钮时的回调
-   */
-  onBack?: () => void
-  /**
-   * 预留给 Tiptap 编辑器内核的自定义渲染区域。
-   * 用户可以直接通过此插槽将实例化后的 Tiptap <EditorContent /> 传进来。
-   */
-  editorContainer?: React.ReactNode
-}
-
-/**
- * CoEdit 文档编辑页静态页面组件 (飞书云文档纯享风格)
- */
 import Collaboration from '@tiptap/extension-collaboration'
 import { io } from 'socket.io-client'
 import * as Y from 'yjs'
 
-export const DocumentEditor: React.FC<DocumentEditorProps> = ({ id: _id, title: initialTitle = '未命名文档', saveStatus: _saveStatus = 'saved', onBack, editorContainer }) => {
+const { Header, Content } = Layout
+
+export interface DocumentEditorProps {
+  id?: string | number
+  title?: string
+  saveStatus?: 'saved' | 'saving' | 'error'
+  onBack?: () => void
+  editorContainer?: React.ReactNode
+}
+
+/**
+ * CoEdit 飞书纯享极简编辑页 (含 Toolbar 与实时协同)
+ */
+export const DocumentEditor: React.FC<DocumentEditorProps> = ({ 
+  id: _id, 
+  title: initialTitle = '未命名文档', 
+  saveStatus: _saveStatus = 'saved', 
+  onBack, 
+  editorContainer 
+}) => {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const [title, setTitle] = useState(initialTitle)
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error'>('saved')
 
@@ -94,7 +88,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ id: _id, title: 
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
-        history: false // 💡 必须关闭自带历史，改用 Yjs 的历史记录管理
+        history: false // 💡 关闭自带历史，使用 Yjs 历史记录
       }),
       Collaboration.configure({
         document: ydoc,
@@ -103,19 +97,33 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ id: _id, title: 
     ],
     content: '',
     onUpdate: ({ editor }) => {
-      // 触发数据库自动保存防抖
       debounceSave(editor.getHTML())
     }
   })
+
+  // 复制链接方法（用户手写实现点）
+  const handleShareLink = () => {
+    const currentUrl = window.location.href
+    navigator.clipboard.writeText(currentUrl).then(() => {
+      message.success('协同邀请链接已复制到剪贴板，快去发给同伴吧！')
+    })
+  }
+
+  // 返回上一页 handlers
+  const handleBackToDashboard = () => {
+    if (onBack) {
+      onBack()
+    } else {
+      navigate('/dashboard')
+    }
+  }
 
   // 4. 处理 WebSocket 二进制协同同步
   useEffect(() => {
     if (!id || !editor) return
 
-    // 连接 Socket 服务器
     const socket = io('http://localhost:3000')
 
-    // 监听连接事件并加入房间
     socket.on('connect', () => {
       socket.emit('join-document', { documentId: id })
 
@@ -127,17 +135,14 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ id: _id, title: 
       socket.emit('sync', stepMessage)
     })
 
-    // 接收后端的第一次同步消息（Sync Step 1 / 2）
     socket.on('sync', (buffer: ArrayBuffer) => {
       Y.applyUpdate(ydoc, new Uint8Array(buffer))
     })
 
-    // 接收其他人的编辑数据
     socket.on('document-updated', (data: { content: ArrayBuffer }) => {
       Y.applyUpdate(ydoc, new Uint8Array(data.content))
     })
 
-    // 当本地 Ydoc 被用户修改时，向外推送二进制增量数据
     const handleYDocUpdate = (update: Uint8Array) => {
       socket.emit('document-update', {
         documentId: id,
@@ -147,14 +152,11 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ id: _id, title: 
 
     ydoc.on('update', handleYDocUpdate)
 
-    // 从数据库获取文档的初始标题并渲染
     const loadInitialDoc = async () => {
       try {
         const res = await apiClient.get(`/document/${id}`)
         setTitle(res.data.title)
-        // 如果数据库有旧数据，且本地 Ydoc 为空，则初始化 Ydoc
         if (res.data.content && ydoc.getText('codewrite').length === 0) {
-          // 初始化同步
           ydoc.transact(() => {
             const ytext = ydoc.getText('codewrite')
             ytext.insert(0, res.data.content)
@@ -166,7 +168,6 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ id: _id, title: 
     }
     loadInitialDoc()
 
-    // 销毁生命周期，断开连接
     return () => {
       ydoc.off('update', handleYDocUpdate)
       socket.disconnect()
@@ -177,7 +178,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ id: _id, title: 
 
   return (
     <Layout style={{ minHeight: '100vh', backgroundColor: '#F5F6F7' }}>
-      {/* 顶部标题与状态栏 */}
+      {/* 顶部 Header 栏 */}
       <Header
         style={{
           background: '#FFFFFF',
@@ -193,7 +194,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ id: _id, title: 
           <Button
             type="text"
             icon={<ChevronLeft size={18} />}
-            onClick={onBack}
+            onClick={handleBackToDashboard}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -205,16 +206,45 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ id: _id, title: 
           <span style={{ fontSize: '16px', fontWeight: 600, color: '#1F2329' }}>{title}</span>
         </Space>
 
-        <Space size={8} style={{ color: '#8F959E', fontSize: '13px' }}>
-          {statusConfig.icon}
-          <span style={{ color: '#8F959E' }}>{statusConfig.text}</span>
+        <Space size={16} style={{ display: 'flex', alignItems: 'center' }}>
+          {/* 保存状态 */}
+          <Space size={6} style={{ color: '#8F959E', fontSize: '13px', marginRight: '8px' }}>
+            {statusConfig.icon}
+            <span>{statusConfig.text}</span>
+          </Space>
+
+          {/* 分享链接按钮 */}
+          <Button 
+            type="primary" 
+            icon={<Share2 size={14} />} 
+            onClick={handleShareLink}
+            style={{ 
+              backgroundColor: '#3370FF', 
+              borderColor: '#3370FF',
+              borderRadius: '4px',
+              fontSize: '13px',
+              display: 'inline-flex',
+              alignItems: 'center'
+            }}
+          >
+            分享协同
+          </Button>
+
+          {/* 当前用户头像 */}
+          <Tooltip title="当前用户在线">
+            <Avatar 
+              size={32} 
+              icon={<User size={18} />} 
+              style={{ backgroundColor: '#E8F0FF', color: '#3370FF', cursor: 'pointer' }} 
+            />
+          </Tooltip>
         </Space>
       </Header>
 
-      {/* 白色纸张编辑器容器 */}
+      {/* 主体编辑器容器 */}
       <Content
         style={{
-          padding: '40px 20px',
+          padding: '24px 20px',
           display: 'flex',
           justifyContent: 'center',
           overflowY: 'auto'
@@ -222,49 +252,136 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ id: _id, title: 
         <div
           style={{
             width: '100%',
-            maxWidth: '800px',
+            maxWidth: '850px',
             backgroundColor: '#FFFFFF',
-            minHeight: '80vh',
-            borderRadius: '4px',
-            boxShadow: '0 2px 8px rgba(31, 35, 41, 0.06)',
+            minHeight: '82vh',
+            borderRadius: '6px',
+            boxShadow: '0 2px 10px rgba(31, 35, 41, 0.05)',
             border: '1px solid #DEE0E3',
-            padding: '40px 60px',
-            boxSizing: 'border-box',
             display: 'flex',
             flexDirection: 'column'
           }}>
-          {/* 文档静态标题区域 */}
-          <div
-            style={{
-              fontSize: '32px',
-              fontWeight: 700,
-              color: '#1F2329',
-              borderBottom: '1px solid #E4E5E7',
-              paddingBottom: '16px',
-              marginBottom: '24px',
-              outline: 'none'
-            }}>
-            {title}
-          </div>
 
-          {/* Tiptap 编辑器骨架占位区 */}
-          <div style={{ flex: 1, minHeight: '300px' }}>
-            {editorContainer ? (
-              editorContainer
-            ) : (
-              <div
-                style={{
-                  color: '#8F959E',
-                  padding: '40px 0',
-                  textAlign: 'center',
-                  fontSize: '15px',
-                  border: '1px dashed #DEE0E3',
-                  borderRadius: '4px',
-                  backgroundColor: '#FAFAFA'
-                }}>
-                <EditorContent editor={editor} />
-              </div>
-            )}
+          {/* 飞书风 Tiptap 富文本格式工具栏 Toolbar */}
+          {editor && (
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '6px',
+                padding: '10px 20px',
+                borderBottom: '1px solid #E4E5E7',
+                backgroundColor: '#FAFAFB',
+                borderTopLeftRadius: '6px',
+                borderTopRightRadius: '6px'
+              }}
+            >
+              <Tooltip title="加粗 (Ctrl+B)">
+                <Button
+                  size="small"
+                  type={editor.isActive('bold') ? 'primary' : 'text'}
+                  icon={<Bold size={15} />}
+                  onClick={() => editor.chain().focus().toggleBold().run()}
+                />
+              </Tooltip>
+              <Tooltip title="斜体 (Ctrl+I)">
+                <Button
+                  size="small"
+                  type={editor.isActive('italic') ? 'primary' : 'text'}
+                  icon={<Italic size={15} />}
+                  onClick={() => editor.chain().focus().toggleItalic().run()}
+                />
+              </Tooltip>
+              <Tooltip title="删除线">
+                <Button
+                  size="small"
+                  type={editor.isActive('strike') ? 'primary' : 'text'}
+                  icon={<Strikethrough size={15} />}
+                  onClick={() => editor.chain().focus().toggleStrike().run()}
+                />
+              </Tooltip>
+              
+              <div style={{ width: '1px', backgroundColor: '#DEE0E3', margin: '0 4px' }} />
+
+              <Tooltip title="一级标题">
+                <Button
+                  size="small"
+                  type={editor.isActive('heading', { level: 1 }) ? 'primary' : 'text'}
+                  icon={<Heading1 size={15} />}
+                  onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+                />
+              </Tooltip>
+              <Tooltip title="二级标题">
+                <Button
+                  size="small"
+                  type={editor.isActive('heading', { level: 2 }) ? 'primary' : 'text'}
+                  icon={<Heading2 size={15} />}
+                  onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+                />
+              </Tooltip>
+
+              <div style={{ width: '1px', backgroundColor: '#DEE0E3', margin: '0 4px' }} />
+
+              <Tooltip title="无序列表">
+                <Button
+                  size="small"
+                  type={editor.isActive('bulletList') ? 'primary' : 'text'}
+                  icon={<List size={15} />}
+                  onClick={() => editor.chain().focus().toggleBulletList().run()}
+                />
+              </Tooltip>
+              <Tooltip title="有序列表">
+                <Button
+                  size="small"
+                  type={editor.isActive('orderedList') ? 'primary' : 'text'}
+                  icon={<ListOrdered size={15} />}
+                  onClick={() => editor.chain().focus().toggleOrderedList().run()}
+                />
+              </Tooltip>
+              <Tooltip title="代码块">
+                <Button
+                  size="small"
+                  type={editor.isActive('codeBlock') ? 'primary' : 'text'}
+                  icon={<Code size={15} />}
+                  onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+                />
+              </Tooltip>
+            </div>
+          )}
+
+          {/* 纸张内部编辑区域 */}
+          <div style={{ padding: '36px 50px', flex: 1, display: 'flex', flexDirection: 'column' }}>
+            {/* 文档静态标题区域 */}
+            <div
+              style={{
+                fontSize: '28px',
+                fontWeight: 700,
+                color: '#1F2329',
+                borderBottom: '1px solid #E4E5E7',
+                paddingBottom: '14px',
+                marginBottom: '20px',
+                outline: 'none'
+              }}>
+              {title}
+            </div>
+
+            {/* 编辑器内容容器 */}
+            <div style={{ flex: 1, minHeight: '350px' }}>
+              {editorContainer ? (
+                editorContainer
+              ) : (
+                <EditorContent 
+                  editor={editor} 
+                  style={{
+                    outline: 'none',
+                    minHeight: '350px',
+                    fontSize: '15px',
+                    lineHeight: '1.7',
+                    color: '#1F2329'
+                  }} 
+                />
+              )}
+            </div>
           </div>
         </div>
       </Content>
@@ -273,3 +390,4 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ id: _id, title: 
 }
 
 export default DocumentEditor
+

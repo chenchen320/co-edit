@@ -1,9 +1,9 @@
+import { Button } from 'antd'
+import { FileText, Folder, PanelLeftClose, Plus, RefreshCw, Settings } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button } from 'antd'
-import { Plus, Folder, FileText, PanelLeftClose, RefreshCw, Settings } from 'lucide-react'
-import { MainLayout } from '../components/Layout/MainLayout'
 import { DocumentTable } from '../components/DocumentTable'
+import { MainLayout } from '../components/Layout/MainLayout'
 import type { DocumentItem } from '../type'
 import apiClient from '../utils/apiClient'
 
@@ -40,8 +40,6 @@ export default function Dashboard({ initialDocuments = DEFAULT_MOCK_DOCUMENTS, u
       onCreateDocument()
       return
     }
-    const mockNewId = Math.floor(Math.random() * 1000) + 10
-    navigate(`/document/${mockNewId}`)
   }
 
   const handleLogout = () => {
@@ -61,6 +59,10 @@ export default function Dashboard({ initialDocuments = DEFAULT_MOCK_DOCUMENTS, u
     } catch {
       alert('删除文档失败')
     }
+  }
+
+  const handleSelectDocument = (id:string | number) => {
+    navigate(`/document/${id}`);
   }
 
   return (

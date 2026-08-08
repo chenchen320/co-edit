@@ -51,12 +51,18 @@ const sync_1 = require("y-protocols/sync");
 const lib0_1 = require("lib0");
 const socket_io_1 = require("socket.io");
 const Y = __importStar(require("yjs"));
+const prisma_service_1 = require("../prisma/prisma.service");
 let CollaborationGateway = class CollaborationGateway {
-    documents = new Map();
-    server;
-    handleDisconnect(client) {
-        console.log(client.id);
+    prisma;
+    constructor(prisma) {
+        this.prisma = prisma;
+        setInterval(() => {
+            this.saveAllDirtyDocsToDatabase();
+        }, 5000);
     }
+    documents = new Map();
+    dirtyDocs = new Set();
+    server;
     handleJoin(client, payload) {
         const { documentId } = payload;
         const docs = this.documents.get(documentId);
@@ -102,14 +108,36 @@ let CollaborationGateway = class CollaborationGateway {
             client.emit('sync', Buffer.from(replyMessage));
         }
         if (syncMessageType === 2) {
+            this.dirtyDocs.add(documentId);
             client.to(documentId).emit('sync', Buffer.from(originalData));
+        }
+    }
+    async saveAllDirtyDocsToDatabase() {
+        for (const item of this.dirtyDocs) {
+            const ydoc = this.documents.get(item);
+            const content = ydoc?.getText('codewrite').toString();
+            await this.prisma.document.update({
+                where: { id: item },
+                data: { content },
+            });
+            this.dirtyDocs.delete(item);
+        }
+    }
+    async handleDisconnect(client) {
+        const id = client.data.documentId;
+        if (!id)
+            return;
+        const size = this.server.sockets.adapter.rooms.get(id)?.size;
+        if (size == 0 || !size) {
+            await this.saveAllDirtyDocsToDatabase();
+            this.documents.delete(id);
         }
     }
 };
 exports.CollaborationGateway = CollaborationGateway;
 __decorate([
     (0, websockets_1.WebSocketServer)(),
-    __metadata("design:type", socket_io_1.Socket)
+    __metadata("design:type", socket_io_1.Server)
 ], CollaborationGateway.prototype, "server", void 0);
 __decorate([
     (0, websockets_1.SubscribeMessage)('join-document'),
@@ -140,6 +168,7 @@ exports.CollaborationGateway = CollaborationGateway = __decorate([
         cors: {
             origin: '*',
         },
-    })
+    }),
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
 ], CollaborationGateway);
 //# sourceMappingURL=collaboration.gateway.js.map

@@ -1,9 +1,12 @@
 import { OnGatewayDisconnect } from '@nestjs/websockets';
-import { Socket } from 'socket.io';
+import { Socket, Server } from 'socket.io';
+import { PrismaService } from "../prisma/prisma.service";
 export declare class CollaborationGateway implements OnGatewayDisconnect {
+    private readonly prisma;
+    constructor(prisma: PrismaService);
     private documents;
-    server: Socket;
-    handleDisconnect(client: Socket): void;
+    private readonly dirtyDocs;
+    server: Server;
     handleJoin(client: Socket, payload: {
         documentId: string;
     }): {
@@ -14,4 +17,6 @@ export declare class CollaborationGateway implements OnGatewayDisconnect {
         content: any;
     }): void;
     handleSync(client: Socket, data: Buffer): void;
+    saveAllDirtyDocsToDatabase(): Promise<void>;
+    handleDisconnect(client: Socket): Promise<void>;
 }

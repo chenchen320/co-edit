@@ -8,20 +8,23 @@ import {
 } from '@nestjs/websockets';
 import { readSyncMessage } from 'y-protocols/sync';
 import { decoding, encoding } from 'lib0';
-import { Socket } from 'socket.io';
+import { Socket, Server } from 'socket.io';
 import * as Y from 'yjs';
+import { PrismaService } from 'src/prisma/prisma.service';
 @WebSocketGateway({
   cors: {
     origin: '*',
   },
 })
 export class CollaborationGateway implements OnGatewayDisconnect {
-  private documents: Map<string, Y.Doc> = new Map();
-  @WebSocketServer() server: Socket;
-
-  handleDisconnect(client: Socket) {
-    console.log(client.id);
+  constructor(private readonly prisma: PrismaService) {
+    setInterval(() => {
+      this.saveAllDirtyDocsToDatabase();
+    }, 5000);
   }
+  private documents: Map<string, Y.Doc> = new Map();
+  private readonly dirtyDocs = new Set<string>();
+  @WebSocketServer() server: Server;
 
   @SubscribeMessage('join-document')
   handleJoin(
@@ -85,7 +88,30 @@ export class CollaborationGateway implements OnGatewayDisconnect {
     }
 
     if (syncMessageType === 2) {
+      this.dirtyDocs.add(documentId);
       client.to(documentId).emit('sync', Buffer.from(originalData));
+    }
+  }
+
+  async saveAllDirtyDocsToDatabase() {
+    for (const item of this.dirtyDocs) {
+      const ydoc = this.documents.get(item);
+      const content = ydoc?.getText('codewrite').toString();
+      await this.prisma.document.update({
+        where: { id: item },
+        data: { content },
+      });
+      this.dirtyDocs.delete(item);
+    }
+  }
+
+  async handleDisconnect(client: Socket) {
+    const id = client.data.documentId;
+    if (!id) return;
+    const size = this.server.sockets.adapter.rooms.get(id)?.size;
+    if (size == 0 || !size) {
+      await this.saveAllDirtyDocsToDatabase();
+      this.documents.delete(id);
     }
   }
 }
