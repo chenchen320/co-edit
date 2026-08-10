@@ -49,3 +49,11 @@ code {
   border-radius: 4px;
 }
 
+.tiptap-responsive-image {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 1rem auto;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(31, 35, 41, 0.08);
+}

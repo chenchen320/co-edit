@@ -99,7 +99,10 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ id: _id, title: 
         field: 'codewrite'
       }),
       Image.configure({
-        inline: true
+        inline: true,
+        HTMLAttributes:{
+          class:'tiptap-responsive-image'
+        }
       })
     ],
     content: '',
