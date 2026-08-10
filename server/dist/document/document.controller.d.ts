@@ -12,6 +12,9 @@ export declare class DocumentController {
         content: string | null;
         authorId: string | null;
     }, never, import("@prisma/client/runtime/library").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
+    uploadImage(file: Express.Multer.File): {
+        url: string;
+    };
     findAll(user: any): Promise<{
         id: string;
         createdAt: Date;

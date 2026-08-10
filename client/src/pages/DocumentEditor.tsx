@@ -3,8 +3,8 @@ import StarterKit from '@tiptap/starter-kit'
 import { Button, Layout, Space, message, Avatar, Tooltip } from 'antd'
 import { encoding } from 'lib0'
 import { 
-  ChevronLeft, CloudCheck, CloudLightning, Share2, User,
-  Bold, Italic, Strikethrough, Heading1, Heading2, List, ListOrdered, Code
+  ChevronLeft, CloudCheck, CloudLightning, Share2, User, Bold, Italic, Strikethrough, 
+  Heading1, Heading2, List, ListOrdered, Code, Image as ImageIcon 
 } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
@@ -14,6 +14,7 @@ import useDebounce from '../utils/useDebounce'
 import Collaboration from '@tiptap/extension-collaboration'
 import { io } from 'socket.io-client'
 import * as Y from 'yjs'
+import Image from '@tiptap/extension-image'
 
 const { Header, Content } = Layout
 
@@ -28,13 +29,16 @@ export interface DocumentEditorProps {
 /**
  * CoEdit 飞书纯享极简编辑页 (含 Toolbar 与实时协同)
  */
-export const DocumentEditor: React.FC<DocumentEditorProps> = ({ 
-  id: _id, 
-  title: initialTitle = '未命名文档', 
-  saveStatus: _saveStatus = 'saved', 
-  onBack, 
-  editorContainer 
-}) => {
+// 💡 二进制安全转化工具：兼容 Socket.io 的各种 ArrayBuffer / Buffer 格式
+const toUint8Array = (data: any): Uint8Array => {
+  if (data instanceof Uint8Array) return data
+  if (data instanceof ArrayBuffer) return new Uint8Array(data)
+  if (data?.data && Array.isArray(data.data)) return new Uint8Array(data.data)
+  if (data?.buffer) return new Uint8Array(data.buffer)
+  return new Uint8Array(data)
+}
+
+export const DocumentEditor: React.FC<DocumentEditorProps> = ({ id: _id, title: initialTitle = '未命名文档', saveStatus: _saveStatus = 'saved', onBack, editorContainer }) => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [title, setTitle] = useState(initialTitle)
@@ -93,6 +97,9 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
       Collaboration.configure({
         document: ydoc,
         field: 'codewrite'
+      }),
+      Image.configure({
+        inline: true
       })
     ],
     content: '',
@@ -101,7 +108,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
     }
   })
 
-  // 复制链接方法（用户手写实现点）
+  // 复制链接方法
   const handleShareLink = () => {
     const currentUrl = window.location.href
     navigator.clipboard.writeText(currentUrl).then(() => {
@@ -116,6 +123,35 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
     } else {
       navigate('/dashboard')
     }
+  }
+
+  // 插入图片手写方法
+  const handleInsertImage = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/*'
+
+    input.onchange = async (event: Event) => {
+      const target = event.target as HTMLInputElement
+      const selectedFile = target.files?.[0]
+      if (!selectedFile) return
+
+      const formData = new FormData()
+      formData.append('file', selectedFile)
+
+      try {
+        const res = await apiClient.post('/document/upload', formData)
+        if (editor) {
+          editor.chain().focus().setImage({ src: res.data.url }).run()
+        }
+      } catch (error) {
+        console.error('图片上传失败', error)
+        message.error('图片上传失败，请检查网络')
+      } finally {
+        input.value = ''
+      }
+    }
+    input.click()
   }
 
   // 4. 处理 WebSocket 二进制协同同步
@@ -135,12 +171,26 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
       socket.emit('sync', stepMessage)
     })
 
-    socket.on('sync', (buffer: ArrayBuffer) => {
-      Y.applyUpdate(ydoc, new Uint8Array(buffer))
+    socket.on('sync', (buffer: any) => {
+      try {
+        const bytes = toUint8Array(buffer)
+        if (bytes.length > 0) {
+          Y.applyUpdate(ydoc, bytes)
+        }
+      } catch (e) {
+        console.warn('忽略无效的 sync 字节包', e)
+      }
     })
 
-    socket.on('document-updated', (data: { content: ArrayBuffer }) => {
-      Y.applyUpdate(ydoc, new Uint8Array(data.content))
+    socket.on('document-updated', (data: any) => {
+      try {
+        const bytes = toUint8Array(data.content)
+        if (bytes.length > 0) {
+          Y.applyUpdate(ydoc, bytes)
+        }
+      } catch (e) {
+        console.warn('忽略无效的 update 字节包', e)
+      }
     })
 
     const handleYDocUpdate = (update: Uint8Array) => {
@@ -152,16 +202,17 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
 
     ydoc.on('update', handleYDocUpdate)
 
+
     const loadInitialDoc = async () => {
       try {
         const res = await apiClient.get(`/document/${id}`)
         setTitle(res.data.title)
-        if (res.data.content && ydoc.getText('codewrite').length === 0) {
-          ydoc.transact(() => {
-            const ytext = ydoc.getText('codewrite')
-            ytext.insert(0, res.data.content)
-          })
-        }
+        // if (res.data.content && ydoc.getText('codewrite').length === 0) {
+        //   ydoc.transact(() => {
+        //     const ytext = ydoc.getText('codewrite')
+        //     ytext.insert(0, res.data.content)
+        //   })
+        // }
       } catch (err) {
         console.error('加载文档数据失败', err)
       }
@@ -207,36 +258,28 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
         </Space>
 
         <Space size={16} style={{ display: 'flex', alignItems: 'center' }}>
-          {/* 保存状态 */}
           <Space size={6} style={{ color: '#8F959E', fontSize: '13px', marginRight: '8px' }}>
             {statusConfig.icon}
             <span>{statusConfig.text}</span>
           </Space>
 
-          {/* 分享链接按钮 */}
-          <Button 
-            type="primary" 
-            icon={<Share2 size={14} />} 
+          <Button
+            type="primary"
+            icon={<Share2 size={14} />}
             onClick={handleShareLink}
-            style={{ 
-              backgroundColor: '#3370FF', 
+            style={{
+              backgroundColor: '#3370FF',
               borderColor: '#3370FF',
               borderRadius: '4px',
               fontSize: '13px',
               display: 'inline-flex',
               alignItems: 'center'
-            }}
-          >
+            }}>
             分享协同
           </Button>
 
-          {/* 当前用户头像 */}
           <Tooltip title="当前用户在线">
-            <Avatar 
-              size={32} 
-              icon={<User size={18} />} 
-              style={{ backgroundColor: '#E8F0FF', color: '#3370FF', cursor: 'pointer' }} 
-            />
+            <Avatar size={32} icon={<User size={18} />} style={{ backgroundColor: '#E8F0FF', color: '#3370FF', cursor: 'pointer' }} />
           </Tooltip>
         </Space>
       </Header>
@@ -261,8 +304,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
             display: 'flex',
             flexDirection: 'column'
           }}>
-
-          {/* 飞书风 Tiptap 富文本格式工具栏 Toolbar */}
+          {/* 飞书风 Tiptap 富文本格式工具栏 Toolbar (含图片按钮) */}
           {editor && (
             <div
               style={{
@@ -274,80 +316,47 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 backgroundColor: '#FAFAFB',
                 borderTopLeftRadius: '6px',
                 borderTopRightRadius: '6px'
-              }}
-            >
+              }}>
               <Tooltip title="加粗 (Ctrl+B)">
-                <Button
-                  size="small"
-                  type={editor.isActive('bold') ? 'primary' : 'text'}
-                  icon={<Bold size={15} />}
-                  onClick={() => editor.chain().focus().toggleBold().run()}
-                />
+                <Button size="small" type={editor.isActive('bold') ? 'primary' : 'text'} icon={<Bold size={15} />} onClick={() => editor.chain().focus().toggleBold().run()} />
               </Tooltip>
               <Tooltip title="斜体 (Ctrl+I)">
-                <Button
-                  size="small"
-                  type={editor.isActive('italic') ? 'primary' : 'text'}
-                  icon={<Italic size={15} />}
-                  onClick={() => editor.chain().focus().toggleItalic().run()}
-                />
+                <Button size="small" type={editor.isActive('italic') ? 'primary' : 'text'} icon={<Italic size={15} />} onClick={() => editor.chain().focus().toggleItalic().run()} />
               </Tooltip>
               <Tooltip title="删除线">
-                <Button
-                  size="small"
-                  type={editor.isActive('strike') ? 'primary' : 'text'}
-                  icon={<Strikethrough size={15} />}
-                  onClick={() => editor.chain().focus().toggleStrike().run()}
-                />
+                <Button size="small" type={editor.isActive('strike') ? 'primary' : 'text'} icon={<Strikethrough size={15} />} onClick={() => editor.chain().focus().toggleStrike().run()} />
               </Tooltip>
-              
+
               <div style={{ width: '1px', backgroundColor: '#DEE0E3', margin: '0 4px' }} />
 
               <Tooltip title="一级标题">
-                <Button
-                  size="small"
-                  type={editor.isActive('heading', { level: 1 }) ? 'primary' : 'text'}
-                  icon={<Heading1 size={15} />}
-                  onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-                />
+                <Button size="small" type={editor.isActive('heading', { level: 1 }) ? 'primary' : 'text'} icon={<Heading1 size={15} />} onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} />
               </Tooltip>
               <Tooltip title="二级标题">
-                <Button
-                  size="small"
-                  type={editor.isActive('heading', { level: 2 }) ? 'primary' : 'text'}
-                  icon={<Heading2 size={15} />}
-                  onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-                />
+                <Button size="small" type={editor.isActive('heading', { level: 2 }) ? 'primary' : 'text'} icon={<Heading2 size={15} />} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} />
               </Tooltip>
 
               <div style={{ width: '1px', backgroundColor: '#DEE0E3', margin: '0 4px' }} />
 
               <Tooltip title="无序列表">
-                <Button
-                  size="small"
-                  type={editor.isActive('bulletList') ? 'primary' : 'text'}
-                  icon={<List size={15} />}
-                  onClick={() => editor.chain().focus().toggleBulletList().run()}
-                />
+                <Button size="small" type={editor.isActive('bulletList') ? 'primary' : 'text'} icon={<List size={15} />} onClick={() => editor.chain().focus().toggleBulletList().run()} />
               </Tooltip>
               <Tooltip title="有序列表">
-                <Button
-                  size="small"
-                  type={editor.isActive('orderedList') ? 'primary' : 'text'}
-                  icon={<ListOrdered size={15} />}
-                  onClick={() => editor.chain().focus().toggleOrderedList().run()}
-                />
+                <Button size="small" type={editor.isActive('orderedList') ? 'primary' : 'text'} icon={<ListOrdered size={15} />} onClick={() => editor.chain().focus().toggleOrderedList().run()} />
               </Tooltip>
               <Tooltip title="代码块">
-                <Button
-                  size="small"
-                  type={editor.isActive('codeBlock') ? 'primary' : 'text'}
-                  icon={<Code size={15} />}
-                  onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-                />
+                <Button size="small" type={editor.isActive('codeBlock') ? 'primary' : 'text'} icon={<Code size={15} />} onClick={() => editor.chain().focus().toggleCodeBlock().run()} />
+              </Tooltip>
+
+              <div style={{ width: '1px', backgroundColor: '#DEE0E3', margin: '0 4px' }} />
+
+              {/* 💡 插入图片按钮 */}
+              <Tooltip title="插入图片">
+                <Button size="small" type="text" icon={<ImageIcon size={15} />} onClick={handleInsertImage} />
               </Tooltip>
             </div>
           )}
+
 
           {/* 纸张内部编辑区域 */}
           <div style={{ padding: '36px 50px', flex: 1, display: 'flex', flexDirection: 'column' }}>
@@ -370,15 +379,15 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
               {editorContainer ? (
                 editorContainer
               ) : (
-                <EditorContent 
-                  editor={editor} 
+                <EditorContent
+                  editor={editor}
                   style={{
                     outline: 'none',
                     minHeight: '350px',
                     fontSize: '15px',
                     lineHeight: '1.7',
                     color: '#1F2329'
-                  }} 
+                  }}
                 />
               )}
             </div>
@@ -390,4 +399,3 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
 }
 
 export default DocumentEditor
-

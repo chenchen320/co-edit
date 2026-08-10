@@ -19,6 +19,9 @@ const create_document_dto_1 = require("./dto/create-document.dto");
 const update_document_dto_1 = require("./dto/update-document.dto");
 const auth_guard_1 = require("../auth/auth.guard");
 const user_dectorator_1 = require("../auth/user.dectorator");
+const platform_express_1 = require("@nestjs/platform-express");
+const multer_1 = require("multer");
+const path_1 = require("path");
 let DocumentController = class DocumentController {
     documentService;
     constructor(documentService) {
@@ -26,6 +29,11 @@ let DocumentController = class DocumentController {
     }
     create(createDocumentDto, user) {
         return this.documentService.create(createDocumentDto, user.id);
+    }
+    uploadImage(file) {
+        return {
+            url: `http://localhost:3000/uploads/${file.filename}`,
+        };
     }
     async findAll(user) {
         return await this.documentService.findAll(user.id);
@@ -49,6 +57,25 @@ __decorate([
     __metadata("design:paramtypes", [create_document_dto_1.CreateDocumentDto, Object]),
     __metadata("design:returntype", void 0)
 ], DocumentController.prototype, "create", null);
+__decorate([
+    (0, common_1.Post)('upload'),
+    (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)('file', {
+        storage: (0, multer_1.diskStorage)({
+            destination: './uploads',
+            filename: (req, file, cb) => {
+                const randomName = Array(32)
+                    .fill(null)
+                    .map(() => Math.round(Math.random() * 16).toString(16))
+                    .join('');
+                cb(null, `${randomName}${(0, path_1.extname)(file.originalname)}`);
+            },
+        }),
+    })),
+    __param(0, (0, common_1.UploadedFile)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], DocumentController.prototype, "uploadImage", null);
 __decorate([
     (0, common_1.Get)(),
     __param(0, (0, user_dectorator_1.User)()),

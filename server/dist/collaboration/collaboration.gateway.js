@@ -89,27 +89,40 @@ let CollaborationGateway = class CollaborationGateway {
         }
     }
     handleSync(client, data) {
+        if (!data || data.length === 0)
+            return;
         const originalData = data instanceof Buffer ? new Uint8Array(data) : data;
         const documentId = client.data.documentId;
         const doc = this.documents.get(documentId);
         if (!documentId || !doc)
             return;
-        const decoder = lib0_1.decoding.createDecoder(data);
-        const messageType = lib0_1.decoding.readVarUint(decoder);
-        if (messageType !== 0) {
-            return;
+        try {
+            const decoder = lib0_1.decoding.createDecoder(data);
+            const messageType = lib0_1.decoding.readVarUint(decoder);
+            if (messageType !== 0) {
+                return;
+            }
+            const syncMessageType = lib0_1.decoding.readVarUint(decoder);
+            const replyEncoder = lib0_1.encoding.createEncoder();
+            const origin = client;
+            try {
+                (0, sync_1.readSyncMessage)(decoder, replyEncoder, doc, origin);
+            }
+            catch {
+                console.warn('收不到完整的二进制包，已自动丢弃');
+                return;
+            }
+            if (lib0_1.encoding.length(replyEncoder) > 0) {
+                const replyMessage = lib0_1.encoding.toUint8Array(replyEncoder);
+                client.emit('sync', Buffer.from(replyMessage));
+            }
+            if (syncMessageType === 2) {
+                this.dirtyDocs.add(documentId);
+                client.to(documentId).emit('sync', Buffer.from(originalData));
+            }
         }
-        const syncMessageType = lib0_1.decoding.readVarUint(decoder);
-        const replyEncoder = lib0_1.encoding.createEncoder();
-        const origin = client;
-        (0, sync_1.readSyncMessage)(decoder, replyEncoder, doc, origin);
-        if (lib0_1.encoding.length(replyEncoder) > 0) {
-            const replyMessage = lib0_1.encoding.toUint8Array(replyEncoder);
-            client.emit('sync', Buffer.from(replyMessage));
-        }
-        if (syncMessageType === 2) {
-            this.dirtyDocs.add(documentId);
-            client.to(documentId).emit('sync', Buffer.from(originalData));
+        catch (error) {
+            console.error('解析Yjs同步数据包失败，安全忽略', error);
         }
     }
     async saveAllDirtyDocsToDatabase() {
