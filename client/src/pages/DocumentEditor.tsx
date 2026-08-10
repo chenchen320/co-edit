@@ -2,10 +2,7 @@ import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { Button, Layout, Space, message, Avatar, Tooltip } from 'antd'
 import { encoding } from 'lib0'
-import { 
-  ChevronLeft, CloudCheck, CloudLightning, Share2, User, Bold, Italic, Strikethrough, 
-  Heading1, Heading2, List, ListOrdered, Code, Image as ImageIcon 
-} from 'lucide-react'
+import { ChevronLeft, CloudCheck, CloudLightning, Share2, User, Bold, Italic, Strikethrough, Heading1, Heading2, List, ListOrdered, Code, Image as ImageIcon } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { writeSyncStep1 } from 'y-protocols/sync.js'
@@ -100,8 +97,8 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ id: _id, title: 
       }),
       Image.configure({
         inline: true,
-        HTMLAttributes:{
-          class:'tiptap-responsive-image'
+        HTMLAttributes: {
+          class: 'tiptap-responsive-image'
         }
       })
     ],
@@ -157,6 +154,24 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ id: _id, title: 
     input.click()
   }
 
+  const saveTitle = async (newTitle: string) => {
+    setSaveStatus('saving')
+    try {
+      await apiClient.patch(`/document/${id}`, { title: newTitle })
+      setSaveStatus('saving')
+    } catch {
+      setSaveStatus('error')
+    }
+  }
+
+  const debounceSaveTitle = useDebounce(saveTitle, 1000)
+
+  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newTitle = e.target.value
+    setTitle(newTitle)
+    debounceSaveTitle(newTitle)
+  }
+
   // 4. 处理 WebSocket 二进制协同同步
   useEffect(() => {
     if (!id || !editor) return
@@ -204,7 +219,6 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ id: _id, title: 
     }
 
     ydoc.on('update', handleYDocUpdate)
-
 
     const loadInitialDoc = async () => {
       try {
@@ -360,22 +374,26 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ id: _id, title: 
             </div>
           )}
 
-
           {/* 纸张内部编辑区域 */}
           <div style={{ padding: '36px 50px', flex: 1, display: 'flex', flexDirection: 'column' }}>
             {/* 文档静态标题区域 */}
-            <div
+            <input
+              value={title}
+              onChange={handleTitleChange}
+              placeholder="未命名文档"
               style={{
                 fontSize: '28px',
                 fontWeight: 700,
                 color: '#1F2329',
+                border: 'none',
+                outline: 'none',
+                width: '100%',
+                backgroundColor: 'transparent',
                 borderBottom: '1px solid #E4E5E7',
                 paddingBottom: '14px',
                 marginBottom: '20px',
-                outline: 'none'
-              }}>
-              {title}
-            </div>
+              }}
+            />
 
             {/* 编辑器内容容器 */}
             <div style={{ flex: 1, minHeight: '350px' }}>

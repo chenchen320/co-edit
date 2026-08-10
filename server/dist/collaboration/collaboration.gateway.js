@@ -104,25 +104,24 @@ let CollaborationGateway = class CollaborationGateway {
             }
             const syncMessageType = lib0_1.decoding.readVarUint(decoder);
             const replyEncoder = lib0_1.encoding.createEncoder();
-            const origin = client;
-            try {
-                (0, sync_1.readSyncMessage)(decoder, replyEncoder, doc, origin);
+            if (syncMessageType === 0) {
+                lib0_1.encoding.writeVarUint(replyEncoder, 0);
+                (0, sync_1.readSyncStep1)(decoder, replyEncoder, doc);
+                if (lib0_1.encoding.length(replyEncoder) > 0) {
+                    client.emit('sync', Buffer.from(lib0_1.encoding.toUint8Array(replyEncoder)));
+                }
             }
-            catch {
-                console.warn('收不到完整的二进制包，已自动丢弃');
-                return;
+            else if (syncMessageType === 1) {
+                (0, sync_1.readSyncStep2)(decoder, doc, client);
             }
-            if (lib0_1.encoding.length(replyEncoder) > 0) {
-                const replyMessage = lib0_1.encoding.toUint8Array(replyEncoder);
-                client.emit('sync', Buffer.from(replyMessage));
-            }
-            if (syncMessageType === 2) {
+            else if (syncMessageType === 2) {
+                (0, sync_1.readUpdate)(decoder, doc, client);
                 this.dirtyDocs.add(documentId);
                 client.to(documentId).emit('sync', Buffer.from(originalData));
             }
         }
-        catch (error) {
-            console.error('解析Yjs同步数据包失败，安全忽略', error);
+        catch (err) {
+            console.error(err);
         }
     }
     async saveAllDirtyDocsToDatabase() {

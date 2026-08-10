@@ -1,7 +1,7 @@
 import React from 'react'
 import { Button,Layout, Dropdown, Tooltip } from 'antd'
 import type { MenuProps } from 'antd'
-import { LogOut, FileText, Folder, Compass, Settings, MessageSquare } from 'lucide-react'
+import { LogOut, FileText, Folder, Compass, Settings, MessageSquare, Leaf } from 'lucide-react'
 
 const { Header, Content, Sider } = Layout
 
@@ -85,9 +85,9 @@ export const MainLayout = ({children,username = '用户',onLogout}: MainLayoutPr
       {/* 右侧主工作区 (Layout 宽度: 剩余宽度自适应) */}
      {/* ================= 右侧顶部导航 + 主内容区 ================= */}
       <Layout style={{ marginLeft: 56, backgroundColor: '#FFFFFF', minHeight: '100vh' }}>
-        <Header style={{ background: '#FFFFFF', padding: '0 24px', height: '56px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #EAEBEF' }}>
+        <Header style={{ background: '#FFFFFF', padding: '0 27px', height: '56px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #EAEBEF' }}>
           {/* 左侧标题（暂时留空，让页面自己去决定显示什么标题） */}
-          <div style={{ fontWeight: 600, color: '#1F2329', fontSize: '14px' }}>CoEdit</div>
+          <div style={{ fontWeight: 600, color: '#1F2329', fontSize: '14px',paddingLeft:'20px' }}>CoEdit</div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
 

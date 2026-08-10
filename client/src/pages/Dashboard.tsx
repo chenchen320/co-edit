@@ -1,5 +1,5 @@
 import { Button } from 'antd'
-import { FileText, Folder, PanelLeftClose, Plus, RefreshCw, Settings } from 'lucide-react'
+import { FileText, Folder, PanelLeftClose, PanelLeftOpen, Plus, RefreshCw, Settings } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { DocumentTable } from '../components/DocumentTable'
@@ -23,6 +23,7 @@ export default function Dashboard({ initialDocuments = DEFAULT_MOCK_DOCUMENTS, u
   const navigate = useNavigate()
   const [documents, setDocument] = useState<DocumentItem[]>(initialDocuments)
   const [selectedDocId, setSelectedDocId] = useState<string | number>(1)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true)
 
   useEffect(() => {
     const fetchDocs = async () => {
@@ -61,8 +62,8 @@ export default function Dashboard({ initialDocuments = DEFAULT_MOCK_DOCUMENTS, u
     }
   }
 
-  const handleSelectDocument = (id:string | number) => {
-    navigate(`/document/${id}`);
+  const handleSelectDocument = (id: string | number) => {
+    navigate(`/document/${id}`)
   }
 
   return (
@@ -74,14 +75,16 @@ export default function Dashboard({ initialDocuments = DEFAULT_MOCK_DOCUMENTS, u
           left: 56,
           top: 0,
           bottom: 0,
-          width: '220px',
+          width: isSidebarOpen ? '220px' : '0px',
+          opacity: isSidebarOpen ? 1 : 0,
+          transform: isSidebarOpen ? 'translateX(0)' : 'translateX(-220px)',
           backgroundColor: '#F8F9FA',
           borderRight: '1px solid #EAEBEF',
           padding: '16px 12px',
           zIndex: 90
         }}>
         <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', color: '#646A73' }}>
-          <PanelLeftClose size={16} style={{ cursor: 'pointer' }} />
+          <PanelLeftClose size={16} style={{ cursor: 'pointer' }} onClick={() => setIsSidebarOpen(!isSidebarOpen)} />
           <Folder size={16} style={{ cursor: 'pointer' }} />
           <RefreshCw size={16} style={{ cursor: 'pointer' }} />
           <Settings size={16} style={{ cursor: 'pointer' }} />
@@ -115,8 +118,22 @@ export default function Dashboard({ initialDocuments = DEFAULT_MOCK_DOCUMENTS, u
         style={{
           marginLeft: '220px',
           padding: '0 24px',
-          boxSizing: 'border-box'
+          boxSizing: 'border-box',
         }}>
+        {/* 💡 当侧边栏收起时，在工作空间顶部显示一个打开按钮 */}
+        {!isSidebarOpen && (
+          <Button
+            type="text"
+            icon={<PanelLeftOpen size={18} />}
+            onClick={() => setIsSidebarOpen(true)}
+            style={{
+              position: 'fixed',
+              left: '70px',
+              top: '13px',
+              zIndex: 100
+            }}
+          />
+        )}
         {/* 限制最大宽度的实际内容区域，并在剩余空间中居中 */}
         <div style={{ width: '100%', maxWidth: '800px', margin: '0 auto' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', gap: '16px' }}>
@@ -127,7 +144,7 @@ export default function Dashboard({ initialDocuments = DEFAULT_MOCK_DOCUMENTS, u
           </div>
 
           {/* 将表格组件塞入主体 */}
-          <DocumentTable data={documents} selectedId={selectedDocId} onSelectDocument={id => setSelectedDocId(id)} onDeleteDocument={handleDeleteDocument} />
+          <DocumentTable data={documents} selectedId={selectedDocId} onSelectDocument={handleSelectDocument} onDeleteDocument={handleDeleteDocument} />
         </div>
       </div>
     </MainLayout>

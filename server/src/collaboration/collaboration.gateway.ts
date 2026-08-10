@@ -6,7 +6,7 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
-import { readSyncMessage } from 'y-protocols/sync';
+import { readUpdate, readSyncStep2, readSyncStep1 } from 'y-protocols/sync';
 import { decoding, encoding } from 'lib0';
 import { Socket, Server } from 'socket.io';
 import * as Y from 'yjs';
@@ -80,26 +80,23 @@ export class CollaborationGateway implements OnGatewayDisconnect {
       const syncMessageType = decoding.readVarUint(decoder);
 
       const replyEncoder = encoding.createEncoder();
-      const origin = client;
 
-      try {
-        readSyncMessage(decoder, replyEncoder, doc, origin);
-      } catch {
-        console.warn('收不到完整的二进制包，已自动丢弃');
-        return;
-      }
+      if (syncMessageType === 0) {
+        encoding.writeVarUint(replyEncoder, 0);
+        readSyncStep1(decoder, replyEncoder, doc);
+        if (encoding.length(replyEncoder) > 0) {
+          client.emit('sync', Buffer.from(encoding.toUint8Array(replyEncoder)));
+        }
+      } else if (syncMessageType === 1) {
+        readSyncStep2(decoder, doc, client);
+      } else if (syncMessageType === 2) {
+        readUpdate(decoder, doc, client);
 
-      if (encoding.length(replyEncoder) > 0) {
-        const replyMessage = encoding.toUint8Array(replyEncoder);
-        client.emit('sync', Buffer.from(replyMessage));
-      }
-
-      if (syncMessageType === 2) {
         this.dirtyDocs.add(documentId);
         client.to(documentId).emit('sync', Buffer.from(originalData));
       }
-    } catch (error) {
-      console.error('解析Yjs同步数据包失败，安全忽略', error);
+    } catch (err) {
+      console.error(err);
     }
   }
 
