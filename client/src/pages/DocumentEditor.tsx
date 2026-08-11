@@ -224,12 +224,9 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ id: _id, title: 
       try {
         const res = await apiClient.get(`/document/${id}`)
         setTitle(res.data.title)
-        // if (res.data.content && ydoc.getText('codewrite').length === 0) {
-        //   ydoc.transact(() => {
-        //     const ytext = ydoc.getText('codewrite')
-        //     ytext.insert(0, res.data.content)
-        //   })
-        // }
+        if(res.data.content && editor && editor.isEmpty){
+          editor.commands.setContent(res.data.content)
+        }
       } catch (err) {
         console.error('加载文档数据失败', err)
       }
