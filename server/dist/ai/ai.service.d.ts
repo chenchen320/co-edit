@@ -1,5 +1,6 @@
+import { Observable } from 'rxjs';
 export declare class AiService {
     private openai;
     constructor();
-    generator(prompt: string): Promise<any>;
+    generatorStream(prompt: string): Observable<MessageEvent>;
 }

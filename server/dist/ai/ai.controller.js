@@ -13,6 +13,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AiController = void 0;
+const rxjs_1 = require("rxjs");
 const ai_service_1 = require("./ai.service");
 const common_1 = require("@nestjs/common");
 let AiController = class AiController {
@@ -20,18 +21,18 @@ let AiController = class AiController {
     constructor(aiService) {
         this.aiService = aiService;
     }
-    async generate(body) {
-        return this.aiService.generator(body.prompt);
+    generateStream(prompt) {
+        return this.aiService.generatorStream(prompt);
     }
 };
 exports.AiController = AiController;
 __decorate([
-    (0, common_1.Post)('generate'),
-    __param(0, (0, common_1.Body)()),
+    (0, common_1.Sse)('generate-stream'),
+    __param(0, (0, common_1.Query)('prompt')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
-    __metadata("design:returntype", Promise)
-], AiController.prototype, "generate", null);
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", rxjs_1.Observable)
+], AiController.prototype, "generateStream", null);
 exports.AiController = AiController = __decorate([
     (0, common_1.Controller)('ai'),
     __metadata("design:paramtypes", [ai_service_1.AiService])

@@ -2,6 +2,7 @@ import React from 'react'
 import { Button,Layout, Dropdown, Tooltip } from 'antd'
 import type { MenuProps } from 'antd'
 import { LogOut, FileText, Folder, Compass, Settings, MessageSquare, Leaf } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 
 const { Header, Content, Sider } = Layout
 
@@ -11,6 +12,8 @@ interface MainLayoutProps {
   onLogout?: () =>  void;
 }
 export const MainLayout = ({children,username = '用户',onLogout}: MainLayoutProps) => {
+
+  const navigate = useNavigate()
   
   const userMenuItems: MenuProps['items'] = [
     {
@@ -72,8 +75,8 @@ export const MainLayout = ({children,username = '用户',onLogout}: MainLayoutPr
           <Tooltip title="模板" placement="right">
             <Button type="text" icon={<FileText size={20} style={{ color: '#646A73' }} />} style={{ width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }} />
           </Tooltip>
-          <Tooltip title="Moment" placement="right">
-            <Button type="text" icon={<MessageSquare size={20} style={{ color: '#646A73' }} />} style={{ width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }} />
+          <Tooltip title="ai-generator" placement="right">
+            <Button type="text" icon={<MessageSquare size={20} style={{ color: '#646A73' }} />} onClick={()=> navigate('/ai-generator')} style={{ width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }} />
           </Tooltip>
           <Tooltip title="设置" placement="right">
             <Button type="text" icon={<Settings size={20} style={{ color: '#646A73' }} />} style={{ width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }} />

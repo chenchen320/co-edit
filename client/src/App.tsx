@@ -4,6 +4,7 @@ import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
 import DocumentEditor from './pages/DocumentEditor'
+import AiGenerator from './pages/AiGenerator'
 
 function App() {
   return (
@@ -28,6 +29,14 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+        path='/ai-generator'
+        element={
+          <ProtectedRoute>
+            <AiGenerator />
+          </ProtectedRoute>
+        }
+        ></Route>
       </Routes>
     </BrowserRouter>
   )
