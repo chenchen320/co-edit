@@ -46,6 +46,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CollaborationGateway = void 0;
+const jwt_1 = require("@nestjs/jwt");
 const websockets_1 = require("@nestjs/websockets");
 const sync_1 = require("y-protocols/sync");
 const lib0_1 = require("lib0");
@@ -54,8 +55,10 @@ const Y = __importStar(require("yjs"));
 const prisma_service_1 = require("../prisma/prisma.service");
 let CollaborationGateway = class CollaborationGateway {
     prisma;
-    constructor(prisma) {
+    jwtservice;
+    constructor(prisma, jwtservice) {
         this.prisma = prisma;
+        this.jwtservice = jwtservice;
         setInterval(() => {
             this.saveAllDirtyDocsToDatabase();
         }, 5000);
@@ -63,23 +66,83 @@ let CollaborationGateway = class CollaborationGateway {
     documents = new Map();
     dirtyDocs = new Set();
     server;
-    handleJoin(client, payload) {
-        const { documentId } = payload;
-        const docs = this.documents.get(documentId);
-        if (documentId) {
-            if (!docs) {
-                const doc = new Y.Doc();
-                this.documents.set(documentId, doc);
+    async handleJoin(client, payload) {
+        const { documentId, shareToken } = payload;
+        if (!documentId)
+            return { status: 'error', message: '缺少文档ID' };
+        try {
+            const userToken = client.handshake.auth.token;
+            if (!userToken) {
+                client.data.mode = 'view';
+                return { status: 'OK', resolvedMode: 'view' };
             }
-            client.join(documentId);
+            const user = this.jwtservice.verify(userToken);
+            const userId = user.id;
+            const doc = await this.prisma.document.findUnique({
+                where: { id: documentId },
+            });
+            if (!doc) {
+                client.data.mode = 'view';
+                return { status: 'ok', resolvedMode: 'view' };
+            }
+            const isOwner = doc.authorId === userId;
+            if (isOwner) {
+                client.data.mode = 'edit';
+            }
+            else {
+                const collab = await this.prisma.collaborator.findUnique({
+                    where: {
+                        documentId_userId: { documentId, userId },
+                    },
+                });
+                if (collab) {
+                    client.data.mode = collab.role === 'editor' ? 'edit' : 'view';
+                }
+                else if (shareToken) {
+                    try {
+                        const decodeShare = this.jwtservice.verify(shareToken);
+                        if (decodeShare.documentId === documentId) {
+                            const assignedRole = decodeShare.role;
+                            await this.prisma.collaborator.create({
+                                data: {
+                                    documentId,
+                                    userId,
+                                    role: assignedRole === 'edit' ? 'editor' : 'viewer',
+                                },
+                            });
+                            client.data.mode = assignedRole;
+                        }
+                        else {
+                            client.data.mode = 'view';
+                        }
+                    }
+                    catch {
+                        client.data.mode = 'view';
+                    }
+                }
+                else {
+                    client.data.mode = 'view';
+                }
+            }
             client.data.documentId = documentId;
-            return { status: 'ok' };
+            client.join(documentId);
+            const roomDoc = this.documents.get(documentId);
+            if (!roomDoc) {
+                this.documents.set(documentId, new Y.Doc());
+            }
+            return { status: 'ok', resolvedMode: client.data.mode };
         }
-        else {
-            client.emit('error', { message: '...' });
+        catch (err) {
+            console.error('WebSocket 加入房间鉴权失败', err);
+            client.data.mode = 'view';
+            client.join(documentId);
+            return { status: 'ok', resolvedMode: 'view' };
         }
     }
     handleDocumentEditor(client, payload) {
+        if (client.data.mode === 'view') {
+            return;
+        }
         if (payload.documentId) {
             client.to(payload.documentId).emit('document-updated', {
                 userId: client.id,
@@ -157,7 +220,7 @@ __decorate([
     __param(1, (0, websockets_1.MessageBody)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [socket_io_1.Socket, Object]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], CollaborationGateway.prototype, "handleJoin", null);
 __decorate([
     (0, websockets_1.SubscribeMessage)('document-update'),
@@ -181,6 +244,7 @@ exports.CollaborationGateway = CollaborationGateway = __decorate([
             origin: '*',
         },
     }),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
+        jwt_1.JwtService])
 ], CollaborationGateway);
 //# sourceMappingURL=collaboration.gateway.js.map

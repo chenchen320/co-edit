@@ -9,11 +9,19 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.CollaborationModule = void 0;
 const common_1 = require("@nestjs/common");
 const collaboration_gateway_1 = require("./collaboration.gateway");
+const prisma_module_1 = require("../prisma/prisma.module");
+const jwt_1 = require("@nestjs/jwt");
 let CollaborationModule = class CollaborationModule {
 };
 exports.CollaborationModule = CollaborationModule;
 exports.CollaborationModule = CollaborationModule = __decorate([
     (0, common_1.Module)({
+        imports: [
+            prisma_module_1.PrismaModule,
+            jwt_1.JwtModule.register({
+                secret: 'my-secret-key-123',
+            }),
+        ],
         providers: [collaboration_gateway_1.CollaborationGateway],
     })
 ], CollaborationModule);

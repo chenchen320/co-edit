@@ -1,10 +1,10 @@
 import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
-import { Button, Layout, Space, message, Avatar, Tooltip } from 'antd'
+import { Button, Layout, Space, message, Avatar, Tooltip, Modal } from 'antd'
 import { encoding } from 'lib0'
 import { ChevronLeft, CloudCheck, CloudLightning, Share2, User, Bold, Italic, Strikethrough, Heading1, Heading2, List, ListOrdered, Code, Image as ImageIcon } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { writeSyncStep1 } from 'y-protocols/sync.js'
 import apiClient from '../utils/apiClient'
 import useDebounce from '../utils/useDebounce'
@@ -40,6 +40,9 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ id: _id, title: 
   const navigate = useNavigate()
   const [title, setTitle] = useState(initialTitle)
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error'>('saved')
+  const [searchParams] = useSearchParams();
+  const shareToken = searchParams.get('shareToken') || undefined;
+  const [editorMode,setEditorMode] = useState<'edit' | 'view'>('edit');
 
   // 1. 初始化 Yjs 文档和共享字段
   const [ydoc] = useState(() => new Y.Doc())
@@ -108,13 +111,29 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ id: _id, title: 
     }
   })
 
-  // 复制链接方法
+  // 💡 大厂级安全分享链接生成方法
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false)
+
   const handleShareLink = () => {
-    const currentUrl = window.location.href
-    navigator.clipboard.writeText(currentUrl).then(() => {
-      message.success('协同邀请链接已复制到剪贴板，快去发给同伴吧！')
-    })
+    setIsShareModalOpen(true)
   }
+
+  const generateAndCopyLink = async (targetRole: 'edit' | 'view') => {
+    try {
+      const res = await apiClient.post(`/document/${id}/share`, { role: targetRole })
+      const shareUrl = res.data.shareUrl
+      
+      await navigator.clipboard.writeText(shareUrl)
+      message.success(`成功生成 ${targetRole === 'edit' ? '【可编辑】' : '【只读】'} 协同邀请链接并复制到剪贴板！`)
+      setIsShareModalOpen(false)
+    } catch (err: any) {
+      console.error(err)
+      // 如果后端判定当前用户是 Viewer 且申请 edit，会触发 403 抛错
+      const errMsg = err?.response?.data?.message || '您没有权限分享此文档'
+      message.error(errMsg)
+    }
+  }
+
 
   // 返回上一页 handlers
   const handleBackToDashboard = () => {
@@ -175,11 +194,21 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ id: _id, title: 
   // 4. 处理 WebSocket 二进制协同同步
   useEffect(() => {
     if (!id || !editor) return
-
-    const socket = io('http://localhost:3000')
+    const token = localStorage.getItem('access_token');
+    const socket = io('http://localhost:3000',{
+      auth:{token}
+    })
 
     socket.on('connect', () => {
-      socket.emit('join-document', { documentId: id })
+      socket.emit('join-document', { documentId: id, shareToken }, (response: any) => {
+        if (response && response.resolvedMode) {
+          const resolved = response.resolvedMode;
+          setEditorMode(resolved);
+          if (resolved === 'view' && editor) {
+            editor.setEditable(false);
+          }
+        }
+      })
 
       const encoder = encoding.createEncoder()
       encoding.writeVarUint(encoder, 0)
@@ -226,6 +255,8 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ id: _id, title: 
         setTitle(res.data.title)
         if(res.data.content && editor && editor.isEmpty){
           editor.commands.setContent(res.data.content)
+          // setContent对只读状态进行冲洗，所以需要重新设置只读或编辑状态
+          editor.setEditable(editorMode === 'edit')
         }
       } catch (err) {
         console.error('加载文档数据失败', err)
@@ -238,6 +269,15 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ id: _id, title: 
       socket.disconnect()
     }
   }, [id, editor, ydoc])
+
+  // 💡 声明式监听：一旦 editorMode 发生变化，立刻强行同步给 Tiptap 编辑器！
+  useEffect(() => {
+    if (editor) {
+      console.log('Tiptap 只读锁定更新:', editorMode)
+      editor.setEditable(editorMode === 'edit')
+    }
+  }, [editorMode, editor])
+
 
   const statusConfig = getStatusConfig()
 
@@ -319,7 +359,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ id: _id, title: 
             flexDirection: 'column'
           }}>
           {/* 飞书风 Tiptap 富文本格式工具栏 Toolbar (含图片按钮) */}
-          {editor && (
+          {editor && editorMode === 'edit' && (
             <div
               style={{
                 display: 'flex',
@@ -375,6 +415,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ id: _id, title: 
           <div style={{ padding: '36px 50px', flex: 1, display: 'flex', flexDirection: 'column' }}>
             {/* 文档静态标题区域 */}
             <input
+              disabled = {editorMode === 'view'}
               value={title}
               onChange={handleTitleChange}
               placeholder="未命名文档"
@@ -412,8 +453,85 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ id: _id, title: 
           </div>
         </div>
       </Content>
+
+      {/* 💡 飞书质感安全分享配置弹窗 */}
+      <Modal
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#1F2329', fontSize: '16px', fontWeight: 600 }}>
+            <Share2 size={16} style={{ color: '#3370FF' }} />
+            <span>分享协同设置</span>
+          </div>
+        }
+        open={isShareModalOpen}
+        onCancel={() => setIsShareModalOpen(false)}
+        footer={null}
+        width={420}
+        destroyOnClose
+        style={{ borderRadius: '8px' }}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', paddingTop: '12px' }}>
+          <div style={{ fontSize: '13px', color: '#646A73', lineHeight: '1.5' }}>
+            选择您想要派发的协同权限。链接一经生成，拷贝并发送即可邀请其他人加入。
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {/* 协同编辑通道 */}
+            <div 
+              style={{ 
+                border: '1px solid #DEE0E3', 
+                borderRadius: '6px', 
+                padding: '12px 16px', 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                backgroundColor: '#F9FAFB'
+              }}
+            >
+              <div>
+                <div style={{ fontWeight: 600, color: '#1F2329', fontSize: '13px' }}>可编辑协同链接</div>
+                <div style={{ fontSize: '11px', color: '#8F959E', marginTop: '2px' }}>允许协作者任意修改文档及上传图片</div>
+              </div>
+              <Button 
+                type="primary" 
+                size="small" 
+                onClick={() => generateAndCopyLink('edit')}
+                style={{ backgroundColor: '#3370FF', borderColor: '#3370FF', borderRadius: '4px', fontSize: '12px' }}
+              >
+                生成并复制
+              </Button>
+            </div>
+
+            {/* 只读围观通道 */}
+            <div 
+              style={{ 
+                border: '1px solid #DEE0E3', 
+                borderRadius: '6px', 
+                padding: '12px 16px', 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                backgroundColor: '#F9FAFB'
+              }}
+            >
+              <div>
+                <div style={{ fontWeight: 600, color: '#1F2329', fontSize: '13px' }}>只读游览链接</div>
+                <div style={{ fontSize: '11px', color: '#8F959E', marginTop: '2px' }}>仅允许协作者阅读，禁止任何修改动作</div>
+              </div>
+              <Button 
+                type="default" 
+                size="small" 
+                onClick={() => generateAndCopyLink('view')}
+                style={{ borderRadius: '4px', fontSize: '12px' }}
+              >
+                生成并复制
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Modal>
     </Layout>
   )
 }
+
 
 export default DocumentEditor

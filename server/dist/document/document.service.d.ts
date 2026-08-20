@@ -1,9 +1,11 @@
 import { CreateDocumentDto } from './dto/create-document.dto';
 import { UpdateDocumentDto } from './dto/update-document.dto';
 import { PrismaService } from "../prisma/prisma.service";
+import { JwtService } from '@nestjs/jwt';
 export declare class DocumentService {
     private prisma;
-    constructor(prisma: PrismaService);
+    private jwt;
+    constructor(prisma: PrismaService, jwt: JwtService);
     create(createDocumentDto: CreateDocumentDto, authorId: string): import("@prisma/client").Prisma.Prisma__DocumentClient<{
         id: string;
         createdAt: Date;
@@ -12,6 +14,10 @@ export declare class DocumentService {
         content: string | null;
         authorId: string | null;
     }, never, import("@prisma/client/runtime/library").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
+    createShareLink(documentId: string, role: 'edit' | 'view', userId: string): Promise<{
+        shareUrl: string;
+        role: "edit" | "view";
+    }>;
     findAll(authorId: string): Promise<{
         id: string;
         createdAt: Date;

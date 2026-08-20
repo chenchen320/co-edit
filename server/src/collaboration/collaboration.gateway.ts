@@ -1,3 +1,5 @@
+import { Document } from './../document/entities/document.entity';
+import { JwtService } from '@nestjs/jwt';
 import {
   ConnectedSocket,
   MessageBody,
@@ -17,7 +19,10 @@ import { PrismaService } from 'src/prisma/prisma.service';
   },
 })
 export class CollaborationGateway implements OnGatewayDisconnect {
-  constructor(private readonly prisma: PrismaService) {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly jwtservice: JwtService,
+  ) {
     setInterval(() => {
       this.saveAllDirtyDocsToDatabase();
     }, 5000);
@@ -27,22 +32,84 @@ export class CollaborationGateway implements OnGatewayDisconnect {
   @WebSocketServer() server: Server;
 
   @SubscribeMessage('join-document')
-  handleJoin(
+  async handleJoin(
     @ConnectedSocket() client: Socket,
-    @MessageBody() payload: { documentId: string },
+    @MessageBody() payload: { documentId: string; shareToken?: string },
   ) {
-    const { documentId } = payload;
-    const docs = this.documents.get(documentId);
-    if (documentId) {
-      if (!docs) {
-        const doc = new Y.Doc();
-        this.documents.set(documentId, doc);
+    const { documentId, shareToken } = payload;
+    if (!documentId) return { status: 'error', message: '缺少文档ID' };
+
+    try {
+      const userToken = client.handshake.auth.token;
+      if (!userToken) {
+        client.data.mode = 'view';
+        return { status: 'OK', resolvedMode: 'view' };
       }
-      client.join(documentId);
+
+      const user = this.jwtservice.verify(userToken);
+      const userId = user.id;
+
+      // 获取文档详情处，如果查找不到文档，不应该提示失败信息吗？为什么返回ok
+      const doc = await this.prisma.document.findUnique({
+        where: { id: documentId },
+      });
+      if (!doc) {
+        client.data.mode = 'view';
+        return { status: 'ok', resolvedMode: 'view' };
+      }
+
+      const isOwner = doc.authorId === userId;
+      if (isOwner) {
+        client.data.mode = 'edit';
+      } else {
+        const collab = await this.prisma.collaborator.findUnique({
+          where: {
+            documentId_userId: { documentId, userId },
+          },
+        });
+
+        if (collab) {
+          client.data.mode = collab.role === 'editor' ? 'edit' : 'view';
+        } else if (shareToken) {
+          try {
+            const decodeShare = this.jwtservice.verify(shareToken);
+
+            if (decodeShare.documentId === documentId) {
+              const assignedRole = decodeShare.role;
+
+              await this.prisma.collaborator.create({
+                data: {
+                  documentId,
+                  userId,
+                  role: assignedRole === 'edit' ? 'editor' : 'viewer',
+                },
+              });
+              client.data.mode = assignedRole;
+            } else {
+              client.data.mode = 'view';
+            }
+          } catch {
+            client.data.mode = 'view';
+          }
+        } else {
+          client.data.mode = 'view';
+        }
+      }
+
       client.data.documentId = documentId;
-      return { status: 'ok' };
-    } else {
-      client.emit('error', { message: '...' });
+      client.join(documentId);
+
+      const roomDoc = this.documents.get(documentId);
+      if (!roomDoc) {
+        this.documents.set(documentId, new Y.Doc());
+      }
+
+      return { status: 'ok', resolvedMode: client.data.mode };
+    } catch (err) {
+      console.error('WebSocket 加入房间鉴权失败', err);
+      client.data.mode = 'view';
+      client.join(documentId);
+      return { status: 'ok', resolvedMode: 'view' };
     }
   }
 
@@ -51,6 +118,10 @@ export class CollaborationGateway implements OnGatewayDisconnect {
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: { documentId: string; content: any },
   ) {
+    if (client.data.mode === 'view') {
+      return;
+    }
+
     if (payload.documentId) {
       client.to(payload.documentId).emit('document-updated', {
         userId: client.id,

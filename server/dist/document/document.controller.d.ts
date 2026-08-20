@@ -15,6 +15,12 @@ export declare class DocumentController {
     uploadImage(file: Express.Multer.File): {
         url: string;
     };
+    generateShare(id: string, body: {
+        role: 'edit' | 'view';
+    }, user: any): Promise<{
+        shareUrl: string;
+        role: "edit" | "view";
+    }>;
     findAll(user: any): Promise<{
         id: string;
         createdAt: Date;

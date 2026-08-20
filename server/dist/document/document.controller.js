@@ -35,6 +35,9 @@ let DocumentController = class DocumentController {
             url: `http://localhost:3000/uploads/${file.filename}`,
         };
     }
+    async generateShare(id, body, user) {
+        return await this.documentService.createShareLink(id, body.role, user.id);
+    }
     async findAll(user) {
         return await this.documentService.findAll(user.id);
     }
@@ -76,6 +79,15 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], DocumentController.prototype, "uploadImage", null);
+__decorate([
+    (0, common_1.Post)(':id/share'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, user_dectorator_1.User)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object, Object]),
+    __metadata("design:returntype", Promise)
+], DocumentController.prototype, "generateShare", null);
 __decorate([
     (0, common_1.Get)(),
     __param(0, (0, user_dectorator_1.User)()),

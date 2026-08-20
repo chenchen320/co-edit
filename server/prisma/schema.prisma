@@ -26,3 +26,12 @@ model User {
   updatedAt DateTime   @updatedAt()
   Document  Document[]
 }
+
+model Collaborator {
+  id          String      @id @default(uuid())
+  documentId  String
+  userId      String
+  role        String 
+  createdAt   DateTime    @default(now())
+  @@unique([documentId,userId])
+}

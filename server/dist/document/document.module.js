@@ -10,11 +10,14 @@ exports.DocumentModule = void 0;
 const common_1 = require("@nestjs/common");
 const document_service_1 = require("./document.service");
 const document_controller_1 = require("./document.controller");
+const prisma_module_1 = require("../prisma/prisma.module");
+const jwt_1 = require("@nestjs/jwt");
 let DocumentModule = class DocumentModule {
 };
 exports.DocumentModule = DocumentModule;
 exports.DocumentModule = DocumentModule = __decorate([
     (0, common_1.Module)({
+        imports: [prisma_module_1.PrismaModule, jwt_1.JwtModule.register({ secret: 'my-secret-key-123' })],
         controllers: [document_controller_1.DocumentController],
         providers: [document_service_1.DocumentService],
     })

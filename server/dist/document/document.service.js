@@ -12,10 +12,13 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.DocumentService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
+const jwt_1 = require("@nestjs/jwt");
 let DocumentService = class DocumentService {
     prisma;
-    constructor(prisma) {
+    jwt;
+    constructor(prisma, jwt) {
         this.prisma = prisma;
+        this.jwt = jwt;
     }
     create(createDocumentDto, authorId) {
         return this.prisma.document.create({
@@ -25,6 +28,36 @@ let DocumentService = class DocumentService {
                 authorId,
             },
         });
+    }
+    async createShareLink(documentId, role, userId) {
+        const doc = await this.prisma.document.findUnique({ where: { id: documentId } });
+        if (!doc) {
+            throw new common_1.ForbiddenException('未找到对应文档');
+        }
+        const isOwner = doc.authorId === userId;
+        let userRole = 'none';
+        if (isOwner) {
+            userRole = 'owner';
+        }
+        else {
+            const collab = await this.prisma.collaborator.findUnique({
+                where: {
+                    documentId_userId: { documentId, userId }
+                }
+            });
+            if (collab) {
+                userRole = collab.role;
+            }
+        }
+        if (userRole === 'none') {
+            throw new common_1.ForbiddenException('您没有分享此文档的权限');
+        }
+        if (userRole === 'viewer' && role === 'edit') {
+            throw new common_1.ForbiddenException('您作为只读查看者，无法生成编辑链接');
+        }
+        const shareToken = this.jwt.sign({ documentId, role }, { expiresIn: '7d' });
+        const shareUrl = `http://localhost:5173/document/${documentId}?shareToken=${shareToken}`;
+        return { shareUrl, role };
     }
     async findAll(authorId) {
         return await this.prisma.document.findMany({
@@ -51,6 +84,7 @@ let DocumentService = class DocumentService {
 exports.DocumentService = DocumentService;
 exports.DocumentService = DocumentService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
+        jwt_1.JwtService])
 ], DocumentService);
 //# sourceMappingURL=document.service.js.map

@@ -49,6 +49,16 @@ export class DocumentController {
     };
   }
 
+  @Post(':id/share')
+  async generateShare(
+    @Param('id') id: string,
+    @Body() body: { role: 'edit' | 'view' },
+    @User() user: any,
+  ) {
+    return await this.documentService.createShareLink(id, body.role, user.id);
+  }
+
+
   @Get()
   async findAll(@User() user: any) {
     return await this.documentService.findAll(user.id);
