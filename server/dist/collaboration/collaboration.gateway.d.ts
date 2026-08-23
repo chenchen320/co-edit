@@ -28,4 +28,5 @@ export declare class CollaborationGateway implements OnGatewayDisconnect {
     handleSync(client: Socket, data: Buffer): void;
     saveAllDirtyDocsToDatabase(): Promise<void>;
     handleDisconnect(client: Socket): Promise<void>;
+    getDocumentSnapshot(documentId: string): Buffer | null;
 }

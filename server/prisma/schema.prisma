@@ -15,6 +15,7 @@ model Document {
   authorId  String?
   updatedAt DateTime @updatedAt()
   User      User?    @relation(fields: [authorId], references: [id])
+  versions  DocumentVersion[]
 }
 
 model User {
@@ -34,4 +35,13 @@ model Collaborator {
   role        String 
   createdAt   DateTime    @default(now())
   @@unique([documentId,userId])
+}
+
+model DocumentVersion {
+  id          String    @id @default(uuid())
+  documentId  String 
+  versionName String
+  snapshot    Bytes
+  createdAt   DateTime @default(now())
+  Document    Document @relation(fields: [documentId],references: [id],onDelete: Cascade)
 }

@@ -38,14 +38,23 @@ let DocumentController = class DocumentController {
     async generateShare(id, body, user) {
         return await this.documentService.createShareLink(id, body.role, user.id);
     }
+    async createVersion(id, body, user) {
+        return await this.documentService.createVersion(id, body.versionName, user.id);
+    }
+    async getVersion(id, user) {
+        return await this.documentService.findVersion(id, user.id);
+    }
+    async getOneVersion(id, versionId, user) {
+        return await this.documentService.findOneVersion(id, versionId, user.id);
+    }
     async findAll(user) {
         return await this.documentService.findAll(user.id);
     }
-    findOne(id) {
-        return this.documentService.findOne(id);
+    findOne(id, user) {
+        return this.documentService.findOne(id, user.id);
     }
-    update(id, updateDocumentDto) {
-        return this.documentService.update(id, updateDocumentDto);
+    update(id, updateDocumentDto, user) {
+        return this.documentService.update(id, updateDocumentDto, user.id);
     }
     remove(id) {
         return this.documentService.remove(id);
@@ -89,6 +98,32 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], DocumentController.prototype, "generateShare", null);
 __decorate([
+    (0, common_1.Post)(':id/version'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, user_dectorator_1.User)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object, Object]),
+    __metadata("design:returntype", Promise)
+], DocumentController.prototype, "createVersion", null);
+__decorate([
+    (0, common_1.Get)(':id/version'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, user_dectorator_1.User)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], DocumentController.prototype, "getVersion", null);
+__decorate([
+    (0, common_1.Get)(':id/version/:versionId'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Param)('versionId')),
+    __param(2, (0, user_dectorator_1.User)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, Object]),
+    __metadata("design:returntype", Promise)
+], DocumentController.prototype, "getOneVersion", null);
+__decorate([
     (0, common_1.Get)(),
     __param(0, (0, user_dectorator_1.User)()),
     __metadata("design:type", Function),
@@ -98,16 +133,18 @@ __decorate([
 __decorate([
     (0, common_1.Get)(':id'),
     __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, user_dectorator_1.User)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", void 0)
 ], DocumentController.prototype, "findOne", null);
 __decorate([
     (0, common_1.Patch)(':id'),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
+    __param(2, (0, user_dectorator_1.User)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, update_document_dto_1.UpdateDocumentDto]),
+    __metadata("design:paramtypes", [String, update_document_dto_1.UpdateDocumentDto, Object]),
     __metadata("design:returntype", void 0)
 ], DocumentController.prototype, "update", null);
 __decorate([

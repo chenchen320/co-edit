@@ -190,11 +190,18 @@ let CollaborationGateway = class CollaborationGateway {
     async saveAllDirtyDocsToDatabase() {
         for (const item of this.dirtyDocs) {
             const ydoc = this.documents.get(item);
-            const content = ydoc?.getText('codewrite').toString();
-            await this.prisma.document.update({
-                where: { id: item },
-                data: { content },
-            });
+            if (!ydoc) {
+                this.dirtyDocs.delete(item);
+                continue;
+            }
+            const xmlFragment = ydoc.getXmlFragment('codewrite');
+            if (xmlFragment && xmlFragment.length > 0) {
+                const content = xmlFragment.toString();
+                await this.prisma.document.update({
+                    where: { id: item },
+                    data: { content },
+                });
+            }
             this.dirtyDocs.delete(item);
         }
     }
@@ -207,6 +214,14 @@ let CollaborationGateway = class CollaborationGateway {
             await this.saveAllDirtyDocsToDatabase();
             this.documents.delete(id);
         }
+    }
+    getDocumentSnapshot(documentId) {
+        const ydoc = this.documents.get(documentId);
+        if (!ydoc) {
+            return null;
+        }
+        const snapshotBytes = Y.encodeStateAsUpdate(ydoc);
+        return Buffer.from(snapshotBytes);
     }
 };
 exports.CollaborationGateway = CollaborationGateway;

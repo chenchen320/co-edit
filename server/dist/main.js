@@ -11,7 +11,10 @@ async function bootstrap() {
     });
     app.useGlobalPipes(new common_1.ValidationPipe());
     app.enableCors({
-        origin: '*',
+        origin: true,
+        methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
+        allowedHeaders: ['Content-Type', 'Authorization'],
+        credentials: true,
     });
     await app.listen(process.env.PORT ?? 3000);
 }

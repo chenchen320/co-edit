@@ -58,6 +58,33 @@ export class DocumentController {
     return await this.documentService.createShareLink(id, body.role, user.id);
   }
 
+  @Post(':id/version')
+  async createVersion(
+    @Param('id') id: string,
+    @Body() body: { versionName: string },
+    @User() user: any,
+  ) {
+    return await this.documentService.createVersion(
+      id,
+      body.versionName,
+      user.id,
+    );
+  }
+
+  @Get(':id/version')
+  async getVersion(@Param('id') id: string, @User() user: any) {
+    return await this.documentService.findVersion(id, user.id);
+  }
+
+  @Get(':id/version/:versionId')
+  async getOneVersion(
+    @Param('id') id: string,
+    @Param('versionId') versionId: string,
+    @User() user: any,
+  ) {
+    return await this.documentService.findOneVersion(id, versionId, user.id);
+  }
+
 
   @Get()
   async findAll(@User() user: any) {
@@ -65,16 +92,17 @@ export class DocumentController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.documentService.findOne(id);
+  findOne(@Param('id') id: string, @User() user: any) {
+    return this.documentService.findOne(id, user.id);
   }
 
   @Patch(':id')
   update(
     @Param('id') id: string,
     @Body() updateDocumentDto: UpdateDocumentDto,
+    @User() user: any,
   ) {
-    return this.documentService.update(id, updateDocumentDto);
+    return this.documentService.update(id, updateDocumentDto, user.id);
   }
 
   @Delete(':id')

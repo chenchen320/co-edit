@@ -1,8 +1,8 @@
 import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
-import { Button, Layout, Space, message, Avatar, Tooltip, Modal } from 'antd'
+import { Button, Layout, Space, message, Avatar, Tooltip, Modal, Drawer, Input } from 'antd'
 import { encoding } from 'lib0'
-import { ChevronLeft, CloudCheck, CloudLightning, Share2, User, Bold, Italic, Strikethrough, Heading1, Heading2, List, ListOrdered, Code, Image as ImageIcon } from 'lucide-react'
+import { ChevronLeft, CloudCheck, CloudLightning, Share2, User, Bold, Italic, Strikethrough, Heading1, Heading2, List, ListOrdered, Code, Image as ImageIcon, History } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { writeSyncStep1 } from 'y-protocols/sync.js'
@@ -40,9 +40,20 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ id: _id, title: 
   const navigate = useNavigate()
   const [title, setTitle] = useState(initialTitle)
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error'>('saved')
-  const [searchParams] = useSearchParams();
-  const shareToken = searchParams.get('shareToken') || undefined;
-  const [editorMode,setEditorMode] = useState<'edit' | 'view'>('edit');
+  const [searchParams] = useSearchParams()
+  const shareToken = searchParams.get('shareToken') || undefined
+  const [editorMode, setEditorMode] = useState<'edit' | 'view'>('edit')
+
+  // 历史版本
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+  const [versionList, setVersionList] = useState<any[]>([])
+  const [newVersionName, setNewVersionName] = useState('')
+
+  // 预览Modal的开启和加载
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
+  const [previewContent, setPreviewContent] = useState('')
+  const [previewVersionName, setPreviewVersionName] = useState('')
+  const [_activeVersionId, setActiveVersionId] = useState<string | null>(null)
 
   // 1. 初始化 Yjs 文档和共享字段
   const [ydoc] = useState(() => new Y.Doc())
@@ -79,7 +90,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ id: _id, title: 
   const saveContentToDatabase = async (htmlContent: string) => {
     setSaveStatus('saving')
     try {
-      await apiClient.patch(`document/${id}`, { content: htmlContent })
+      await apiClient.patch(`/document/${id}`, { content: htmlContent })
       setSaveStatus('saved')
     } catch {
       setSaveStatus('error')
@@ -91,9 +102,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ id: _id, title: 
   // 3. 配置 Tiptap 编辑器内核（绑定 Yjs 的 ydoc）
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({
-        history: false // 💡 关闭自带历史，使用 Yjs 历史记录
-      }),
+      StarterKit,
       Collaboration.configure({
         document: ydoc,
         field: 'codewrite'
@@ -122,7 +131,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ id: _id, title: 
     try {
       const res = await apiClient.post(`/document/${id}/share`, { role: targetRole })
       const shareUrl = res.data.shareUrl
-      
+
       await navigator.clipboard.writeText(shareUrl)
       message.success(`成功生成 ${targetRole === 'edit' ? '【可编辑】' : '【只读】'} 协同邀请链接并复制到剪贴板！`)
       setIsShareModalOpen(false)
@@ -133,7 +142,6 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ id: _id, title: 
       message.error(errMsg)
     }
   }
-
 
   // 返回上一页 handlers
   const handleBackToDashboard = () => {
@@ -177,7 +185,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ id: _id, title: 
     setSaveStatus('saving')
     try {
       await apiClient.patch(`/document/${id}`, { title: newTitle })
-      setSaveStatus('saving')
+      setSaveStatus('saved')
     } catch {
       setSaveStatus('error')
     }
@@ -191,21 +199,79 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ id: _id, title: 
     debounceSaveTitle(newTitle)
   }
 
+  // 保存为历史版本
+  const handleSaveVersion = async () => {
+    if (!newVersionName) {
+      message.warning('请输入当前版本的描述名称')
+      return
+    }
+    try {
+      await apiClient.post(`/document/${id}/version`, { versionName: newVersionName })
+      message.success('历史版本快照保存成功')
+      setNewVersionName('')
+      fetchVersion()
+    } catch {
+      message.error('保存版本失败')
+    }
+  }
+
+  // 拉取当前文档的所有历史版本
+  const fetchVersion = async () => {
+    try {
+      const res = await apiClient.get(`/document/${id}/version`)
+      setVersionList(res.data)
+    } catch {
+      message.error('获取版本列表失败')
+    }
+  }
+
+  useEffect(() => {
+    if (isDrawerOpen) {
+      fetchVersion()
+    }
+  }, [isDrawerOpen])
+
+  // 预览框
+  const handleVersionPreview = async (ver: any) => {
+    setPreviewVersionName(ver.versionName)
+    setActiveVersionId(ver.id)
+
+    try {
+      const res = await apiClient.get(`/document/${id}/version/${ver.id}`)
+
+      const snapshotData = res.data.snapshot // 得到后端传来的二进制数据
+      const snapshotBytes = toUint8Array(snapshotData)
+      const tempYdoc = new Y.Doc()
+
+      Y.applyUpdate(tempYdoc, snapshotBytes)
+      const historicalHtml = tempYdoc.getText('codewrite').toString()
+      setPreviewContent(historicalHtml)
+      setIsPreviewOpen(true)
+    } catch (err) {
+      console.error(err)
+      message.error('加载历史版本快照失败')
+    }
+  }
+
+  // 回滚函数占位版本
+  const handleRollbackVersion = async () => {
+    message.info('准备执行版本回滚，后端接口正在对接中...')
+  }
   // 4. 处理 WebSocket 二进制协同同步
   useEffect(() => {
     if (!id || !editor) return
-    const token = localStorage.getItem('access_token');
-    const socket = io('http://localhost:3000',{
-      auth:{token}
+    const token = localStorage.getItem('access_token')
+    const socket = io('http://localhost:3000', {
+      auth: { token }
     })
 
     socket.on('connect', () => {
       socket.emit('join-document', { documentId: id, shareToken }, (response: any) => {
         if (response && response.resolvedMode) {
-          const resolved = response.resolvedMode;
-          setEditorMode(resolved);
+          const resolved = response.resolvedMode
+          setEditorMode(resolved)
           if (resolved === 'view' && editor) {
-            editor.setEditable(false);
+            editor.setEditable(false)
           }
         }
       })
@@ -253,8 +319,9 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ id: _id, title: 
       try {
         const res = await apiClient.get(`/document/${id}`)
         setTitle(res.data.title)
-        if(res.data.content && editor && editor.isEmpty){
-          editor.commands.setContent(res.data.content)
+        const isYDocEmpty = ydoc.getXmlFragment('codewrite').length ===0
+        if (res.data.content && editor && editor.isEmpty && isYDocEmpty)  {
+          editor.commands.setContent(res.data.content,false)
           // setContent对只读状态进行冲洗，所以需要重新设置只读或编辑状态
           editor.setEditable(editorMode === 'edit')
         }
@@ -277,7 +344,6 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ id: _id, title: 
       editor.setEditable(editorMode === 'edit')
     }
   }, [editorMode, editor])
-
 
   const statusConfig = getStatusConfig()
 
@@ -316,6 +382,22 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ id: _id, title: 
             {statusConfig.icon}
             <span>{statusConfig.text}</span>
           </Space>
+
+          <Button
+            type="default"
+            icon={<History size={14} />}
+            onClick={() => setIsDrawerOpen(true)}
+            style={{
+              borderRadius: '4px',
+              fontSize: '13px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              borderColor: '#DEE0E3',
+              color: '#646A73'
+            }}>
+            历史版本
+          </Button>
 
           <Button
             type="primary"
@@ -415,7 +497,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ id: _id, title: 
           <div style={{ padding: '36px 50px', flex: 1, display: 'flex', flexDirection: 'column' }}>
             {/* 文档静态标题区域 */}
             <input
-              disabled = {editorMode === 'view'}
+              disabled={editorMode === 'view'}
               value={title}
               onChange={handleTitleChange}
               placeholder="未命名文档"
@@ -429,7 +511,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ id: _id, title: 
                 backgroundColor: 'transparent',
                 borderBottom: '1px solid #E4E5E7',
                 paddingBottom: '14px',
-                marginBottom: '20px',
+                marginBottom: '20px'
               }}
             />
 
@@ -466,72 +548,166 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ id: _id, title: 
         onCancel={() => setIsShareModalOpen(false)}
         footer={null}
         width={420}
-        destroyOnClose
-        style={{ borderRadius: '8px' }}
-      >
+        destroyOnHidden
+        style={{ borderRadius: '8px' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', paddingTop: '12px' }}>
-          <div style={{ fontSize: '13px', color: '#646A73', lineHeight: '1.5' }}>
-            选择您想要派发的协同权限。链接一经生成，拷贝并发送即可邀请其他人加入。
-          </div>
+          <div style={{ fontSize: '13px', color: '#646A73', lineHeight: '1.5' }}>选择您想要派发的协同权限。链接一经生成，拷贝并发送即可邀请其他人加入。</div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {/* 协同编辑通道 */}
-            <div 
-              style={{ 
-                border: '1px solid #DEE0E3', 
-                borderRadius: '6px', 
-                padding: '12px 16px', 
-                display: 'flex', 
-                justifyContent: 'space-between', 
+            <div
+              style={{
+                border: '1px solid #DEE0E3',
+                borderRadius: '6px',
+                padding: '12px 16px',
+                display: 'flex',
+                justifyContent: 'space-between',
                 alignItems: 'center',
                 backgroundColor: '#F9FAFB'
-              }}
-            >
+              }}>
               <div>
                 <div style={{ fontWeight: 600, color: '#1F2329', fontSize: '13px' }}>可编辑协同链接</div>
                 <div style={{ fontSize: '11px', color: '#8F959E', marginTop: '2px' }}>允许协作者任意修改文档及上传图片</div>
               </div>
-              <Button 
-                type="primary" 
-                size="small" 
-                onClick={() => generateAndCopyLink('edit')}
-                style={{ backgroundColor: '#3370FF', borderColor: '#3370FF', borderRadius: '4px', fontSize: '12px' }}
-              >
+              <Button type="primary" size="small" onClick={() => generateAndCopyLink('edit')} style={{ backgroundColor: '#3370FF', borderColor: '#3370FF', borderRadius: '4px', fontSize: '12px' }}>
                 生成并复制
               </Button>
             </div>
 
             {/* 只读围观通道 */}
-            <div 
-              style={{ 
-                border: '1px solid #DEE0E3', 
-                borderRadius: '6px', 
-                padding: '12px 16px', 
-                display: 'flex', 
-                justifyContent: 'space-between', 
+            <div
+              style={{
+                border: '1px solid #DEE0E3',
+                borderRadius: '6px',
+                padding: '12px 16px',
+                display: 'flex',
+                justifyContent: 'space-between',
                 alignItems: 'center',
                 backgroundColor: '#F9FAFB'
-              }}
-            >
+              }}>
               <div>
                 <div style={{ fontWeight: 600, color: '#1F2329', fontSize: '13px' }}>只读游览链接</div>
                 <div style={{ fontSize: '11px', color: '#8F959E', marginTop: '2px' }}>仅允许协作者阅读，禁止任何修改动作</div>
               </div>
-              <Button 
-                type="default" 
-                size="small" 
-                onClick={() => generateAndCopyLink('view')}
-                style={{ borderRadius: '4px', fontSize: '12px' }}
-              >
+              <Button type="default" size="small" onClick={() => generateAndCopyLink('view')} style={{ borderRadius: '4px', fontSize: '12px' }}>
                 生成并复制
               </Button>
             </div>
           </div>
         </div>
       </Modal>
+
+      {/* 💡 飞书级历史版本抽屉 */}
+      <Drawer
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#1F2329', fontSize: '15px', fontWeight: 600 }}>
+            <History size={16} style={{ color: '#3370FF' }} />
+            <span>文档历史版本时光机</span>
+          </div>
+        }
+        placement="right"
+        onClose={() => setIsDrawerOpen(false)}
+        open={isDrawerOpen}
+        size={360}
+        style={{ borderRadius: '8px 0 0 8px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* 保存新版本控制区 */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderBottom: '1px solid #F0F1F5', paddingBottom: '16px' }}>
+            <span style={{ fontSize: '13px', fontWeight: 600, color: '#1F2329' }}>创建当前版本快照</span>
+            <Input placeholder="例如：下午三点会议修改大纲" value={newVersionName} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewVersionName(e.target.value)} style={{ borderRadius: '4px', fontSize: '13px' }} />
+            <Button type="primary" onClick={handleSaveVersion} style={{ width: '100%', borderRadius: '4px', backgroundColor: '#3370FF', borderColor: '#3370FF', height: '34px', fontSize: '13px' }}>
+              保存快照
+            </Button>
+          </div>
+
+          {/* 历史版本列表展示区 */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <span style={{ fontSize: '13px', fontWeight: 600, color: '#1F2329' }}>历史版本记录</span>
+            {versionList.length === 0 ? (
+              <div style={{ padding: '24px 0', textAlign: 'center', color: '#8F959E', fontSize: '13px' }}>暂无任何快照记录，快去上面创建一个吧！</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '55vh', overflowY: 'auto' }}>
+                {versionList.map(ver => (
+                  <div
+                    key={ver.id}
+                    onClick={() => handleVersionPreview(ver)}
+                    style={{
+                      border: '1px solid #DEE0E3',
+                      borderRadius: '6px',
+                      padding: '12px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '4px',
+                      cursor: 'pointer',
+                      backgroundColor: '#FAFAFB',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.borderColor = '#3370FF')}
+                    onMouseLeave={e => (e.currentTarget.style.borderColor = '#DEE0E3')}>
+                    <span style={{ fontWeight: 600, fontSize: '13px', color: '#1F2329' }}>{ver.versionName}</span>
+                    <span style={{ fontSize: '11px', color: '#8F959E' }}>{new Date(ver.createdAt).toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </Drawer>
+
+      {/* 💡 影子历史版本只读预览弹窗 */}
+      <Modal
+        title={
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '92%' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '15px' }}>
+              <History size={16} style={{ color: '#3370FF' }} />
+              <span>版本预览: {previewVersionName}</span>
+            </div>
+            
+            {/* 💡 恢复该历史版本的动作按钮 */}
+            {editorMode === 'edit' && (
+              <Button
+                type="primary"
+                onClick={handleRollbackVersion}
+                style={{
+                  backgroundColor: '#3370FF',
+                  borderColor: '#3370FF',
+                  borderRadius: '4px',
+                  height: '28px',
+                  fontSize: '12px',
+                  lineHeight: '28px',
+                  padding: '0 12px'
+                }}
+              >
+                恢复此版本
+              </Button>
+            )}
+          </div>
+        }
+        open={isPreviewOpen}
+        onCancel={() => setIsPreviewOpen(false)}
+        footer={null}
+        width={800}
+        style={{ top: 60 }}
+        styles={{ body: { maxHeight: '70vh', overflowY: 'auto', padding: '24px 32px' } }}
+      >
+        {/* 💡 只读影子编辑器容器 */}
+        <div 
+          className="tiptap-preview"
+          dangerouslySetInnerHTML={{ __html: previewContent || '<p style="color:#8F959E">此版本内容为空</p>' }}
+          style={{ 
+            fontSize: '15px', 
+            lineHeight: '1.7', 
+            color: '#1F2329',
+            border: '1px solid #DEE0E3',
+            borderRadius: '6px',
+            padding: '24px',
+            backgroundColor: '#FAFAFB',
+            minHeight: '350px'
+          }}
+        />
+      </Modal>
     </Layout>
   )
 }
-
 
 export default DocumentEditor

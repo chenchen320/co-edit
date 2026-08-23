@@ -1,14 +1,25 @@
 import { Document } from './entities/document.entity';
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { CollaborationGateway } from './../collaboration/collaboration.gateway';
+import {
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  forwardRef,
+} from '@nestjs/common';
 import { CreateDocumentDto } from './dto/create-document.dto';
 import { UpdateDocumentDto } from './dto/update-document.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
+import * as Y from 'yjs';
 
 @Injectable()
 export class DocumentService {
-  constructor(private prisma: PrismaService,
-    private jwt:JwtService
+  constructor(
+    private prisma: PrismaService,
+    private jwt: JwtService,
+    @Inject(forwardRef(() => CollaborationGateway))
+    private readonly collaborationGateway: CollaborationGateway,
   ) {}
 
   create(createDocumentDto: CreateDocumentDto, authorId: string) {
@@ -21,51 +32,144 @@ export class DocumentService {
     });
   }
 
-  async createShareLink(
+  // 💡 统一零信任权限卫士：在后端彻底防范越权垂直与平行漏洞
+  private async checkDocumentPermission(
     documentId: string,
-    role: 'edit' | 'view',
     userId: string,
+    action: 'read' | 'edit' | 'delete' = 'read',
   ) {
-    // 💡 补齐 await 异步查询
-    const doc = await this.prisma.document.findUnique({ where: { id: documentId } });
+    const doc = await this.prisma.document.findUnique({
+      where: { id: documentId },
+    });
     if (!doc) {
-      throw new ForbiddenException('未找到对应文档');
+      throw new NotFoundException('未找到对应文档');
     }
 
-    const isOwner = doc.authorId === userId;
+    const isOwner = Boolean(
+      doc.authorId && doc.authorId.trim() === userId.trim(),
+    );
     let userRole: 'owner' | 'editor' | 'viewer' | 'none' = 'none';
 
     if (isOwner) {
       userRole = 'owner';
     } else {
-      // 💡 修复：使用正确的 Prisma 联合主键查询语法，并加 await
       const collab = await this.prisma.collaborator.findUnique({
         where: {
-          documentId_userId: { documentId, userId }
-        }
+          documentId_userId: { documentId, userId },
+        },
       });
       if (collab) {
         userRole = collab.role as 'editor' | 'viewer';
       }
     }
 
-    // 💡 核心拦截：游客(none)拦截
+    // 💡 规则 1：游客一律驱逐，禁止任何操作
     if (userRole === 'none') {
-      throw new ForbiddenException('您没有分享此文档的权限');
+      throw new ForbiddenException('您没有访问此文档的权限');
     }
 
-    // 💡 核心拦截：只读用户不允许派发编辑链接
+    // 💡 规则 2：执行「修改 (edit)」操作时，Viewer 只读协作者必须被强行拦截！
+    if (action === 'edit' && userRole === 'viewer') {
+      throw new ForbiddenException('您作为只读查看者，无权修改文档内容');
+    }
+
+    // 💡 规则 3：执行「删除 (delete)」操作时，必须且只能由所有者 (Owner) 本人操作！
+    if (action === 'delete' && userRole !== 'owner') {
+      throw new ForbiddenException('只有文档所有者才能删除该文档');
+    }
+
+    return doc;
+  }
+
+  async createShareLink(
+    documentId: string,
+    role: 'edit' | 'view',
+    userId: string,
+  ) {
+    // 💡 查验权限：至少需要 read 权限才能申请分享链接
+    const doc = await this.checkDocumentPermission(documentId, userId, 'read');
+
+    // 确定申请者的具体身份
+    const isOwner = doc.authorId === userId;
+    let userRole: 'owner' | 'editor' | 'viewer' = 'viewer';
+
+    if (isOwner) {
+      userRole = 'owner';
+    } else {
+      const collab = await this.prisma.collaborator.findUnique({
+        where: { documentId_userId: { documentId, userId } },
+      });
+      if (collab && collab.role === 'editor') {
+        userRole = 'editor';
+      }
+    }
+
+    // 只读用户不允许派发编辑链接
     if (userRole === 'viewer' && role === 'edit') {
       throw new ForbiddenException('您作为只读查看者，无法生成编辑链接');
     }
 
-    // 💡 生成 Token
+    // 生成 Token
     const shareToken = this.jwt.sign({ documentId, role }, { expiresIn: '7d' });
     const shareUrl = `http://localhost:5173/document/${documentId}?shareToken=${shareToken}`;
-    
+
     return { shareUrl, role };
   }
 
+  async createVersion(documentId: string, versionName: string, userId: string) {
+    // 💡 查验权限：必须是 edit 级别及以上（Owner/Editor）才能创建版本快照
+    const doc = await this.checkDocumentPermission(documentId, userId, 'edit');
+
+    // 跨界索要Yjs二进制YDoc
+    let snapshotBuffer =
+      this.collaborationGateway.getDocumentSnapshot(documentId);
+
+    // 防空兜底(无人在线时)
+    if (!snapshotBuffer) {
+      const tempDoc = new Y.Doc();
+      const text = tempDoc.getText('codewrite');
+      text.insert(0, doc.content || '');
+      snapshotBuffer = Buffer.from(Y.encodeStateAsUpdate(tempDoc));
+    }
+    // 存入数据库的DocumentVersion表中
+    return this.prisma.documentVersion.create({
+      data: {
+        documentId,
+        versionName: versionName || `保存于${new Date().toLocaleString()}`,
+        snapshot: Buffer.from(snapshotBuffer),
+      },
+    });
+  }
+
+  async findVersion(documentId: string, userId: string) {
+    // 💡 查验权限：有 read 权限的人即可获取版本列表
+    await this.checkDocumentPermission(documentId, userId, 'read');
+
+    return this.prisma.documentVersion.findMany({
+      where: { documentId },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        versionName: true,
+        createdAt: true,
+      },
+    });
+  }
+
+  async findOneVersion(documentId: string, versionId: string, userId: string) {
+    // 💡 查验权限：有 read 权限的人可以获取具体版本的快照大包
+    await this.checkDocumentPermission(documentId, userId, 'read');
+
+    const version = await this.prisma.documentVersion.findUnique({
+      where: { id: versionId },
+    });
+
+    if (!version || version.documentId !== documentId) {
+      throw new NotFoundException('未找到对应版本快照');
+    }
+
+    return version;
+  }
 
   async findAll(authorId: string) {
     return await this.prisma.document.findMany({
@@ -73,13 +177,18 @@ export class DocumentService {
     });
   }
 
-  async findOne(id: string) {
-    return await this.prisma.document.findUnique({
-      where: { id },
-    });
+  // 💡 修复越权：加载单个文档详情时，绑定 checkDocumentPermission 进行协作者查验
+  async findOne(id: string, userId: string) {
+    return await this.checkDocumentPermission(id, userId, 'read');
   }
 
-  async update(id: string, updateDocumentDto: UpdateDocumentDto) {
+  // 💡 修复越权：更新文档详情（如修改标题等动作）时，必须是 edit 权限以上
+  async update(
+    id: string,
+    updateDocumentDto: UpdateDocumentDto,
+    userId: string,
+  ) {
+    await this.checkDocumentPermission(id, userId, 'edit');
     return await this.prisma.document.update({
       where: { id },
       data: updateDocumentDto,

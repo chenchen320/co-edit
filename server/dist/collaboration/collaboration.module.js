@@ -11,6 +11,7 @@ const common_1 = require("@nestjs/common");
 const collaboration_gateway_1 = require("./collaboration.gateway");
 const prisma_module_1 = require("../prisma/prisma.module");
 const jwt_1 = require("@nestjs/jwt");
+const document_module_1 = require("../document/document.module");
 let CollaborationModule = class CollaborationModule {
 };
 exports.CollaborationModule = CollaborationModule;
@@ -21,8 +22,10 @@ exports.CollaborationModule = CollaborationModule = __decorate([
             jwt_1.JwtModule.register({
                 secret: 'my-secret-key-123',
             }),
+            (0, common_1.forwardRef)(() => document_module_1.DocumentModule),
         ],
         providers: [collaboration_gateway_1.CollaborationGateway],
+        exports: [collaboration_gateway_1.CollaborationGateway],
     })
 ], CollaborationModule);
 //# sourceMappingURL=collaboration.module.js.map

@@ -13,6 +13,11 @@ export class AuthGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
+    console.log('收到 OPTIONS 探测请求');
+    if (request.method === 'OPTIONS') {
+      return true;
+    }
+
     const token = this.extractTokenFromHeader(request);
     if (!token) {
       throw new UnauthorizedException('未携带身份凭证');

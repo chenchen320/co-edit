@@ -12,14 +12,20 @@ const document_service_1 = require("./document.service");
 const document_controller_1 = require("./document.controller");
 const prisma_module_1 = require("../prisma/prisma.module");
 const jwt_1 = require("@nestjs/jwt");
+const collaboration_module_1 = require("../collaboration/collaboration.module");
 let DocumentModule = class DocumentModule {
 };
 exports.DocumentModule = DocumentModule;
 exports.DocumentModule = DocumentModule = __decorate([
     (0, common_1.Module)({
-        imports: [prisma_module_1.PrismaModule, jwt_1.JwtModule.register({ secret: 'my-secret-key-123' })],
+        imports: [
+            prisma_module_1.PrismaModule,
+            jwt_1.JwtModule.register({ secret: 'my-secret-key-123' }),
+            (0, common_1.forwardRef)(() => collaboration_module_1.CollaborationModule),
+        ],
         controllers: [document_controller_1.DocumentController],
         providers: [document_service_1.DocumentService],
+        exports: [document_service_1.DocumentService],
     })
 ], DocumentModule);
 //# sourceMappingURL=document.module.js.map
