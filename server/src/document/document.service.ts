@@ -1,5 +1,3 @@
-import { Document } from './entities/document.entity';
-import { CollaborationGateway } from './../collaboration/collaboration.gateway';
 import {
   ForbiddenException,
   Inject,
@@ -7,11 +5,12 @@ import {
   NotFoundException,
   forwardRef,
 } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { PrismaService } from 'src/prisma/prisma.service';
+import * as Y from 'yjs';
+import { CollaborationGateway } from './../collaboration/collaboration.gateway';
 import { CreateDocumentDto } from './dto/create-document.dto';
 import { UpdateDocumentDto } from './dto/update-document.dto';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { JwtService } from '@nestjs/jwt';
-import * as Y from 'yjs';
 
 @Injectable()
 export class DocumentService {
@@ -116,6 +115,7 @@ export class DocumentService {
     return { shareUrl, role };
   }
 
+  
   async createVersion(documentId: string, versionName: string, userId: string) {
     // 💡 查验权限：必须是 edit 级别及以上（Owner/Editor）才能创建版本快照
     const doc = await this.checkDocumentPermission(documentId, userId, 'edit');
@@ -169,6 +169,48 @@ export class DocumentService {
     }
 
     return version;
+  }
+
+  async rollbackVersion(docId: string, userId: string, targetVerId: string) {
+    await this.checkDocumentPermission(docId, userId, 'edit');
+    const targetVersion = await this.prisma.documentVersion.findFirst({
+      where: { documentId: docId, id: targetVerId },
+    });
+    if (!targetVersion) {
+      throw new NotFoundException('未查找到相关历史版本的内容');
+    }
+
+    const newDoc = new Y.Doc();
+    const historyUpdate = targetVersion.snapshot;
+
+    Y.applyUpdate(newDoc, historyUpdate);
+
+    const xmlFragment = newDoc.getXmlFragment('codewrite');
+    const targetContent = xmlFragment.toString();
+
+    const [updatedDoc, newVersion] = await this.prisma.$transaction([
+      this.prisma.document.update({
+        where: { id: docId },
+        data: {
+          content: targetContent,
+        },
+      }),
+      this.prisma.documentVersion.create({
+        data: {
+          documentId: docId,
+          snapshot: Buffer.from(historyUpdate),
+          versionName: `恢复到${targetContent.slice(0, 20)}...`,
+        },
+      }),
+    ]);
+
+    await this.collaborationGateway.applyRollback(
+      docId,
+      targetContent,
+      historyUpdate,
+    );
+
+    return newVersion;
   }
 
   async findAll(authorId: string) {

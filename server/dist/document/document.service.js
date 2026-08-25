@@ -46,11 +46,11 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DocumentService = void 0;
-const collaboration_gateway_1 = require("./../collaboration/collaboration.gateway");
 const common_1 = require("@nestjs/common");
-const prisma_service_1 = require("../prisma/prisma.service");
 const jwt_1 = require("@nestjs/jwt");
+const prisma_service_1 = require("../prisma/prisma.service");
 const Y = __importStar(require("yjs"));
+const collaboration_gateway_1 = require("./../collaboration/collaboration.gateway");
 let DocumentService = class DocumentService {
     prisma;
     jwt;
@@ -162,6 +162,37 @@ let DocumentService = class DocumentService {
             throw new common_1.NotFoundException('未找到对应版本快照');
         }
         return version;
+    }
+    async rollbackVersion(docId, userId, targetVerId) {
+        await this.checkDocumentPermission(docId, userId, 'edit');
+        const targetVersion = await this.prisma.documentVersion.findFirst({
+            where: { documentId: docId, id: targetVerId },
+        });
+        if (!targetVersion) {
+            throw new common_1.NotFoundException('未查找到相关历史版本的内容');
+        }
+        const newDoc = new Y.Doc();
+        const historyUpdate = targetVersion.snapshot;
+        Y.applyUpdate(newDoc, historyUpdate);
+        const xmlFragment = newDoc.getXmlFragment('codewrite');
+        const targetContent = xmlFragment.toString();
+        const [updatedDoc, newVersion] = await this.prisma.$transaction([
+            this.prisma.document.update({
+                where: { id: docId },
+                data: {
+                    content: targetContent,
+                },
+            }),
+            this.prisma.documentVersion.create({
+                data: {
+                    documentId: docId,
+                    snapshot: Buffer.from(historyUpdate),
+                    versionName: `恢复到${targetContent.slice(0, 20)}...`,
+                },
+            }),
+        ]);
+        await this.collaborationGateway.applyRollback(docId, targetContent, historyUpdate);
+        return newVersion;
     }
     async findAll(authorId) {
         return await this.prisma.document.findMany({

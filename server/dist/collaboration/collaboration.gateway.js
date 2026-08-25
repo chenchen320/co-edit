@@ -215,13 +215,27 @@ let CollaborationGateway = class CollaborationGateway {
             this.documents.delete(id);
         }
     }
+    async applyRollback(docId, targetContent, historyUpdate) {
+        const ydoc = this.documents.get(docId);
+        let updateBuffer = historyUpdate;
+        if (ydoc) {
+            const xmlFragment = ydoc.getXmlFragment('codewrite');
+            xmlFragment.delete(0, xmlFragment.length);
+            xmlFragment.insert(0, [new Y.XmlText(targetContent)]);
+            updateBuffer = Buffer.from(Y.encodeStateAsUpdate(ydoc));
+        }
+        this.server.to(docId).emit('document-rolled-back', {
+            documentId: docId,
+            content: targetContent,
+            update: updateBuffer,
+        });
+    }
     getDocumentSnapshot(documentId) {
         const ydoc = this.documents.get(documentId);
         if (!ydoc) {
             return null;
         }
-        const snapshotBytes = Y.encodeStateAsUpdate(ydoc);
-        return Buffer.from(snapshotBytes);
+        return Buffer.from(Y.encodeStateAsUpdate(ydoc));
     }
 };
 exports.CollaborationGateway = CollaborationGateway;

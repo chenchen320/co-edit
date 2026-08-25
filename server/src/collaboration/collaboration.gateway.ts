@@ -201,13 +201,32 @@ export class CollaborationGateway implements OnGatewayDisconnect {
     }
   }
 
+  async applyRollback(
+    docId: string,
+    targetContent: string,
+    historyUpdate: Uint8Array,
+  ) {
+    const ydoc = this.documents.get(docId);
+    let updateBuffer = historyUpdate;
+    if (ydoc) {
+      const xmlFragment = ydoc.getXmlFragment('codewrite');
+      xmlFragment.delete(0, xmlFragment.length);
+      xmlFragment.insert(0, [new Y.XmlText(targetContent)]);
+      updateBuffer = Buffer.from(Y.encodeStateAsUpdate(ydoc));
+    }
+
+    this.server.to(docId).emit('document-rolled-back', {
+      documentId: docId,
+      content: targetContent,
+      update: updateBuffer,
+    });
+  }
+
   getDocumentSnapshot(documentId: string): Buffer | null {
     const ydoc = this.documents.get(documentId);
     if (!ydoc) {
       return null;
     }
-
-    const snapshotBytes = Y.encodeStateAsUpdate(ydoc);
-    return Buffer.from(snapshotBytes);
+    return Buffer.from(Y.encodeStateAsUpdate(ydoc));
   }
 }

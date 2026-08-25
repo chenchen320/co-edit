@@ -32,6 +32,7 @@ const toUint8Array = (data: any): Uint8Array => {
   if (data instanceof ArrayBuffer) return new Uint8Array(data)
   if (data?.data && Array.isArray(data.data)) return new Uint8Array(data.data)
   if (data?.buffer) return new Uint8Array(data.buffer)
+  if (typeof data === 'object') return new Uint8Array(Object.values(data))
   return new Uint8Array(data)
 }
 
@@ -244,7 +245,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ id: _id, title: 
       const tempYdoc = new Y.Doc()
 
       Y.applyUpdate(tempYdoc, snapshotBytes)
-      const historicalHtml = tempYdoc.getText('codewrite').toString()
+      const historicalHtml = tempYdoc.getXmlFragment('codewrite').toString()
       setPreviewContent(historicalHtml)
       setIsPreviewOpen(true)
     } catch (err) {
@@ -319,9 +320,9 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ id: _id, title: 
       try {
         const res = await apiClient.get(`/document/${id}`)
         setTitle(res.data.title)
-        const isYDocEmpty = ydoc.getXmlFragment('codewrite').length ===0
-        if (res.data.content && editor && editor.isEmpty && isYDocEmpty)  {
-          editor.commands.setContent(res.data.content,false)
+        const isYDocEmpty = ydoc.getXmlFragment('codewrite').length === 0
+        if (res.data.content && editor && editor.isEmpty && isYDocEmpty) {
+          editor.commands.setContent(res.data.content, false)
           // setContent对只读状态进行冲洗，所以需要重新设置只读或编辑状态
           editor.setEditable(editorMode === 'edit')
         }
@@ -662,7 +663,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ id: _id, title: 
               <History size={16} style={{ color: '#3370FF' }} />
               <span>版本预览: {previewVersionName}</span>
             </div>
-            
+
             {/* 💡 恢复该历史版本的动作按钮 */}
             {editorMode === 'edit' && (
               <Button
@@ -676,8 +677,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ id: _id, title: 
                   fontSize: '12px',
                   lineHeight: '28px',
                   padding: '0 12px'
-                }}
-              >
+                }}>
                 恢复此版本
               </Button>
             )}
@@ -688,15 +688,14 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({ id: _id, title: 
         footer={null}
         width={800}
         style={{ top: 60 }}
-        styles={{ body: { maxHeight: '70vh', overflowY: 'auto', padding: '24px 32px' } }}
-      >
+        styles={{ body: { maxHeight: '70vh', overflowY: 'auto', padding: '24px 32px' } }}>
         {/* 💡 只读影子编辑器容器 */}
-        <div 
+        <div
           className="tiptap-preview"
           dangerouslySetInnerHTML={{ __html: previewContent || '<p style="color:#8F959E">此版本内容为空</p>' }}
-          style={{ 
-            fontSize: '15px', 
-            lineHeight: '1.7', 
+          style={{
+            fontSize: '15px',
+            lineHeight: '1.7',
             color: '#1F2329',
             border: '1px solid #DEE0E3',
             borderRadius: '6px',

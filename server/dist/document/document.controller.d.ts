@@ -6,11 +6,11 @@ export declare class DocumentController {
     constructor(documentService: DocumentService);
     create(createDocumentDto: CreateDocumentDto, user: any): import("@prisma/client").Prisma.Prisma__DocumentClient<{
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         title: string;
         content: string | null;
-        createdAt: Date;
         authorId: string | null;
-        updatedAt: Date;
     }, never, import("@prisma/client/runtime/library").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
     uploadImage(file: Express.Multer.File): {
         url: string;
@@ -24,9 +24,18 @@ export declare class DocumentController {
     createVersion(id: string, body: {
         versionName: string;
     }, user: any): Promise<{
-        documentId: string;
         id: string;
         createdAt: Date;
+        documentId: string;
+        versionName: string;
+        snapshot: import("@prisma/client/runtime/library").Bytes;
+    }>;
+    rollbackVersion(id: string, body: {
+        versionId: string;
+    }, user: any): Promise<{
+        id: string;
+        createdAt: Date;
+        documentId: string;
         versionName: string;
         snapshot: import("@prisma/client/runtime/library").Bytes;
     }>;
@@ -36,42 +45,42 @@ export declare class DocumentController {
         versionName: string;
     }[]>;
     getOneVersion(id: string, versionId: string, user: any): Promise<{
-        documentId: string;
         id: string;
         createdAt: Date;
+        documentId: string;
         versionName: string;
         snapshot: import("@prisma/client/runtime/library").Bytes;
     }>;
     findAll(user: any): Promise<{
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         title: string;
         content: string | null;
-        createdAt: Date;
         authorId: string | null;
-        updatedAt: Date;
     }[]>;
     findOne(id: string, user: any): Promise<{
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         title: string;
         content: string | null;
-        createdAt: Date;
         authorId: string | null;
-        updatedAt: Date;
     }>;
     update(id: string, updateDocumentDto: UpdateDocumentDto, user: any): Promise<{
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         title: string;
         content: string | null;
-        createdAt: Date;
         authorId: string | null;
-        updatedAt: Date;
     }>;
     remove(id: string): Promise<{
         id: string;
+        createdAt: Date;
+        updatedAt: Date;
         title: string;
         content: string | null;
-        createdAt: Date;
         authorId: string | null;
-        updatedAt: Date;
     }>;
 }

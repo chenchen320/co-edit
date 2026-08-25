@@ -71,6 +71,15 @@ export class DocumentController {
     );
   }
 
+  @Post(':id/version/rollback')
+  async rollbackVersion(
+    @Param('id') id:string,
+    @Body() body:{versionId:string},
+    @User() user:any
+  ){
+    return this.documentService.rollbackVersion(id,user.id,body.versionId)
+  }
+
   @Get(':id/version')
   async getVersion(@Param('id') id: string, @User() user: any) {
     return await this.documentService.findVersion(id, user.id);
@@ -84,6 +93,8 @@ export class DocumentController {
   ) {
     return await this.documentService.findOneVersion(id, versionId, user.id);
   }
+
+  
 
 
   @Get()

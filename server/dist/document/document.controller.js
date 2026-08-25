@@ -41,6 +41,9 @@ let DocumentController = class DocumentController {
     async createVersion(id, body, user) {
         return await this.documentService.createVersion(id, body.versionName, user.id);
     }
+    async rollbackVersion(id, body, user) {
+        return this.documentService.rollbackVersion(id, user.id, body.versionId);
+    }
     async getVersion(id, user) {
         return await this.documentService.findVersion(id, user.id);
     }
@@ -106,6 +109,15 @@ __decorate([
     __metadata("design:paramtypes", [String, Object, Object]),
     __metadata("design:returntype", Promise)
 ], DocumentController.prototype, "createVersion", null);
+__decorate([
+    (0, common_1.Post)(':id/version/rollback'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, user_dectorator_1.User)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object, Object]),
+    __metadata("design:returntype", Promise)
+], DocumentController.prototype, "rollbackVersion", null);
 __decorate([
     (0, common_1.Get)(':id/version'),
     __param(0, (0, common_1.Param)('id')),
